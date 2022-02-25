@@ -25,11 +25,15 @@ type LoopConfig struct {
 	//clock pulse interval in milliseconds, 0 means using the default(1000 ms)
 	Tick uint32
 
-	//#ticks of work check interval, 0 means using the default(0)
+	//#ticks of work check interval,  set to 0 as using the default(1)
 	Work uint32
 
-	//#ticks of idle check interval, 0 means using the default(0)
+	//#ticks of idle check interval, set to 0 to use the default(1)
 	Idle uint32
+
+	//#ticks after which the loop will be terminated,
+	// set to 0 as disabling auto termination
+	//Quit uint32
 
 	//if false, fn will be executed in another go routine, false by default
 	Sync bool
@@ -176,6 +180,11 @@ func (l *BreakableLoop) loop(hooks *LoopRunHook) {
 				}
 				log.Tracef("%s loop Stalling hook called", l.name)
 			}
+
+			//if l.conf.Quit != 0 && workCount%l.conf.Quit == 0 {
+			//	l.stopTrigger()
+			//	log.Tracef("%s loop Quit threshold exceeds", l.name)
+			//}
 
 			log.Tracef("%s loop cycle check done", l.name)
 		}
