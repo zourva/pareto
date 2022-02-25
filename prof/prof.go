@@ -2,9 +2,9 @@ package prof
 
 import (
 	log "github.com/sirupsen/logrus"
+	"github.com/zourva/pareto/box"
 	"net/http"
 	"os"
-	"pareto/box"
 	"runtime"
 	"runtime/pprof"
 

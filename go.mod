@@ -1,4 +1,4 @@
-module pareto
+module github.com/zourva/pareto
 
 go 1.16
 
