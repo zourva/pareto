@@ -1,6 +1,8 @@
 package pareto
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestDefaultSetup(t *testing.T) {
 	tests := []struct {

@@ -1,8 +1,10 @@
 # pareto
 Frequently used go code for 80% projects when programming.
 
+NOT stable yet and may change dramatically.
+
 Features:
-- [x] basics(box)
+- [ ] basics(box)
   - [x] type converters
   - [x] encoder & decoders
   - [x] file operations
@@ -10,16 +12,26 @@ Features:
   - [x] network operations
   - [x] timestamps
   - [x] cpu id
-- [ ] services
-  - [x] logging
-  - [x] profiling
-  - [x] environment management
-  - [ ] resource management
-    - [x] string literals 
-- [ ] meta pattern:
+- [ ] meta patterns
   - [x] loop controller 
   - [x] state machine
+- [ ] network topology
+  - [x] MQTT broker embedded based on [Mochi](https://github.com/mochi-co/mqtt/server)
+  - [x] MQTT client based on [paho](https://github.com/eclipse/paho.golang/paho)
+  - [x] MQ client based on [nats]()
+  - [x] RPC server based on [msgpack-rpc](#)
+  - [x] RPC client based on [msgpack-rpc](#)
+  - [x] inter-module communication 
+    - [x] inner-proc event bus based on [EventBus](https://github.com/asaskevich/EventBus)
 
+- [ ] inner-process services
+  - [x] logging based on [logrus](https://github.com/sirupsen/logrus)
+  - [x] profiling
+  - [ ] config management based on [viper](https://github.com/spf13/viper)
+  - [ ] options management based on [cobra](https://github.com/spf13/cobra)
+  - [x] working directory management
+  - [x] resource management
+    - [x] string literals 
 
 Examples:
 ```
