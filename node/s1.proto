@@ -1,0 +1,154 @@
+syntax = "proto3";
+package node;
+
+import "google/protobuf/empty.proto";
+
+message VersionInfo {
+  // module name - version
+  map<string, string> versions = 1;
+}
+
+message UpgradeInfo {
+  // module name - url/endpoint
+  map<string, string> endpoints = 1;
+}
+
+message ParameterInfo {
+  message Parameter {
+    string type = 1;
+    string value = 2;
+  }
+
+  // parameter name - value
+  map<string, Parameter> parameters = 1;
+}
+
+message DeviceInfo {
+  uint32 type = 1;
+  string vendor = 2;
+  string model = 3;
+  string version = 4;
+  string cpuInfo = 7;
+  uint64 memInfo = 8;
+  uint64 storage = 9;
+}
+
+message Utilization {
+  uint32 cpuRate = 1;
+  uint32 memRate = 2;
+  uint32 storageRate = 3;
+  float diskReadRate = 4;
+  float diskWrtnRate = 5;
+  float netReadRate = 6;
+  float netWrtnRate = 7;
+  uint32 networkDelay = 8;
+}
+
+message SignUpReq {
+  uint32 alg = 1; //algorithm, 1-des, 2-aes, 3-国密4
+  string hid = 2; //hardware id
+  string key = 3; //auth token, base64(alg(md5(hid+HexString(cipherKey)) + timestamp))
+  fixed64 timestamp = 4; //nanoseconds
+}
+
+message SignUpRsp {
+  uint32 alg = 1; //algorithm, 1-des, 2-aes, 3-国密4
+  string id = 2;  //allocated identity = md5(md5(hid) + allocation key)
+  string key = 3; //base64(alg(md5(id+hid+HexString(cipherKey)) + timestamp + expire))
+  fixed64 expire = 4; //key expiration timestamp, in seconds
+}
+
+// pdu for sign in
+message SignInReq {
+  string softwareVersion = 1;
+  string protocolVersion = 2;
+  string ipv4Address = 3;
+
+  DeviceInfo deviceInfo = 11;
+  Utilization utilization = 12;
+  VersionInfo versionInfo = 13;
+  ParameterInfo parameterInfo = 14;
+}
+
+message SignInRsp {
+  ParameterInfo parameterInfo = 1;
+  UpgradeInfo upgradeInfo = 2;
+}
+
+message SignOutReq {
+}
+
+message SignOutRsp {
+}
+
+message GetConfigReq {
+  ParameterInfo parameterInfo = 1;
+}
+
+message GetConfigRsp {
+  ParameterInfo parameterInfo = 1;
+}
+
+message CheckUpgradeReq {
+  VersionInfo versionInfo = 1;
+}
+
+message CheckUpgradeRsp {
+  UpgradeInfo upgradeInfo = 1;
+}
+
+message ReportStatusReq {
+  string softwareVersion = 1;
+  string protocolVersion = 2;
+  string ipv4Address = 3;
+
+  DeviceInfo deviceInfo = 11;
+  Utilization utilization = 12;
+  VersionInfo versionInfo = 13;
+  ParameterInfo parameterInfo = 14;
+}
+
+message UpgradeNotice {
+  ParameterInfo parameterInfo = 1;
+  UpgradeInfo upgradeInfo = 2;
+}
+
+enum ErrorCode {
+  Success = 0x00;
+  IntegrityError = 0x01;
+  FormatError = 0x02;
+  NotFound = 0x03;
+  UnSupported = 0x04;
+  Expired = 0x05;
+  IllegalState = 0x06;
+  Busy = 0x0E;
+  InternalError = 0xFE;
+  Unknown = 0xFF;
+}
+
+// streamed procedures
+enum Procedure {
+  //ul part
+  Initiate = 0x00;
+
+  //dl part
+  NotifyUpgrade = 0x80;
+}
+
+message StreamMessage {
+  Procedure proc = 1;
+  ErrorCode code = 2;
+  //
+}
+
+service S1Service{
+  // agent-initiated unidirectional services
+  rpc SignUp(SignUpReq) returns (SignUpRsp);
+  rpc SignIn(SignInReq) returns (SignInRsp);
+  rpc SignOut(SignOutReq) returns (SignOutRsp);
+  rpc Report(ReportStatusReq) returns (google.protobuf.Empty);
+  rpc Config(GetConfigReq) returns (GetConfigRsp);
+
+  // agent-initiated bidirectional service
+  rpc StreamTransfer(stream StreamMessage) returns (stream StreamMessage);
+}

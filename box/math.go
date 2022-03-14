@@ -67,6 +67,19 @@ func ClampI32(min, max, val int32) int32 {
 	return val
 }
 
+// Clamp returns the value rounded to [min, max]
+func ClampU32(min, max, val uint32) uint32 {
+	if val < min {
+		return min
+	}
+
+	if val > max {
+		return max
+	}
+
+	return val
+}
+
 // AbsI64 returns |x|
 func AbsI64(v int64) uint64 {
 	if v > 0 {

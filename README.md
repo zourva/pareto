@@ -23,7 +23,13 @@ Features:
   - [x] RPC client based on [msgpack-rpc](#)
   - [x] inter-module communication 
     - [x] inner-proc event bus based on [EventBus](https://github.com/asaskevich/EventBus)
-
+- [ ] distributed node management
+  - [ ] node provisioning & configuration
+  - [ ] node status keeping & monitoring
+  - [ ] node online/offline(join & leave)
+  - [ ] admin api
+    - [x] node info maintenance
+    - [x] uploader & downloader
 - [ ] inner-process services
   - [x] logging based on [logrus](https://github.com/sirupsen/logrus)
   - [x] profiling

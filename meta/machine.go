@@ -13,11 +13,11 @@ type State struct {
 	Action Action //action of this state when ticks expire
 	Args   interface{}
 
-	tickCnt uint     //ticks already passed after started
-	machine *Machine //reference to owner
+	tickCnt uint          //ticks already passed after started
+	machine *StateMachine //reference to owner
 }
 
-type Machine struct {
+type StateMachine struct {
 	name   string
 	states map[string]*State
 
@@ -32,8 +32,8 @@ type Machine struct {
 	trace     bool
 }
 
-func NewStateMachine(name string, precision time.Duration) *Machine {
-	sm := &Machine{
+func NewStateMachine(name string, precision time.Duration) *StateMachine {
+	sm := &StateMachine{
 		name:      name,
 		states:    make(map[string]*State),
 		precision: precision,
@@ -53,7 +53,7 @@ func (s *State) trigger() {
 			if s.tickCnt%5 == 0 {
 				if s.machine.trace {
 					log.Debugf("state machine %s trigger action %s", s.machine.name, s.Name)
-				}else{
+				} else {
 					log.Tracef("state machine %s trigger action %s", s.machine.name, s.Name)
 				}
 			}
@@ -62,22 +62,22 @@ func (s *State) trigger() {
 
 			if s.machine.stopping != "" && s.Name == s.machine.stopping {
 				close(s.machine.stopped)
-				s.machine.stopped = nil
+				//s.machine.stopped = nil
 				log.Debugf("state machine %s stop acknowledged", s.machine.name)
 			}
 		}
 	}
 }
 
-func (sm *Machine) GetState() string {
+func (sm *StateMachine) GetState() string {
 	return sm.current
 }
 
-func (sm *Machine) EnableStateTrace(on bool) {
+func (sm *StateMachine) EnableStateTrace(on bool) {
 	sm.trace = on
 }
 
-func (sm *Machine) MoveToState(s string) bool {
+func (sm *StateMachine) MoveToState(s string) bool {
 	if _, exist := sm.states[s]; !exist {
 		log.Errorf("state machine %s state %s not found", sm.name, s)
 		return false
@@ -93,7 +93,7 @@ func (sm *Machine) MoveToState(s string) bool {
 	return true
 }
 
-func (sm *Machine) RegisterState(s *State) bool {
+func (sm *StateMachine) RegisterState(s *State) bool {
 	if s == nil || len(s.Name) == 0 {
 		log.Errorf("state machine %s reg invalid state, ignored", sm.name)
 		return false
@@ -108,7 +108,7 @@ func (sm *Machine) RegisterState(s *State) bool {
 	return true
 }
 
-func (sm *Machine) RegisterStates(ss []*State) bool {
+func (sm *StateMachine) RegisterStates(ss []*State) bool {
 	for _, s := range ss {
 		if !sm.RegisterState(s) {
 			return false
@@ -118,7 +118,7 @@ func (sm *Machine) RegisterStates(ss []*State) bool {
 	return true
 }
 
-func (sm *Machine) SetStartingState(state string) bool {
+func (sm *StateMachine) SetStartingState(state string) bool {
 	_, ok := sm.states[state]
 	if !ok {
 		log.Errorf("given starting state %s is not registered", state)
@@ -129,7 +129,7 @@ func (sm *Machine) SetStartingState(state string) bool {
 	return true
 }
 
-func (sm *Machine) SetStoppingState(state string) bool {
+func (sm *StateMachine) SetStoppingState(state string) bool {
 	_, ok := sm.states[state]
 	if !ok {
 		log.Errorf("given stopping state %s is not registered", state)
@@ -140,7 +140,7 @@ func (sm *Machine) SetStoppingState(state string) bool {
 	return true
 }
 
-func (sm *Machine) Startup() bool {
+func (sm *StateMachine) Startup() bool {
 	if len(sm.states) == 0 {
 		log.Errorln("state machine %s has no states registered, cannot startup")
 		return false
@@ -161,10 +161,8 @@ func (sm *Machine) Startup() bool {
 	return true
 }
 
-// Shutdown the state machine scan loop.
-// NOTE: this will hold until the stopping state action returns
-// if there's stopping state
-func (sm *Machine) Shutdown() {
+// Shutdown stops the internal loop and wait until the stopping state action returns.
+func (sm *StateMachine) Shutdown() {
 	log.Infof("state machine %s is exiting", sm.name)
 
 	if len(sm.stopping) != 0 {
@@ -180,28 +178,28 @@ func (sm *Machine) Shutdown() {
 	log.Infof("state machine %s exited", sm.name)
 }
 
-func (sm *Machine) Pause() {
+func (sm *StateMachine) Pause() {
 	sm.ticker.Stop()
 }
 
-func (sm *Machine) Resume() {
+func (sm *StateMachine) Resume() {
 	sm.ticker.Reset(sm.precision)
 }
 
-func (sm *Machine) SaveState() {
+func (sm *StateMachine) SaveState() {
 	sm.saved = sm.current
 }
 
-func (sm *Machine) RestoreState() {
+func (sm *StateMachine) RestoreState() {
 	sm.MoveToState(sm.saved)
 }
 
-func (sm *Machine) trigger() {
+func (sm *StateMachine) trigger() {
 	state := sm.states[sm.current]
 	state.trigger()
 }
 
-func (sm *Machine) loop() {
+func (sm *StateMachine) loop() {
 	for
 	{
 		select {

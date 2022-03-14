@@ -7,11 +7,13 @@ import (
 	"strings"
 )
 
+// DirInfo describes directory entry info.
 type DirInfo struct {
 	Name string
 	Mode os.FileMode
 }
 
+// WorkingDir defines the working directory of an app.
 type WorkingDir struct {
 	// Working directory of this distribution
 	Path string
@@ -23,21 +25,11 @@ type WorkingDir struct {
 	Directories []string
 }
 
-func NewWorkingDir(parent bool, dirs []*DirInfo) *WorkingDir {
-	wd := &WorkingDir{
-		Directories: []string{},
-	}
-
-	wd.NormalizeWorkingDir(parent, dirs)
-
-	return wd
-}
-
-// NormalizeWorkingDir normalize a working directory layout
+// NewWorkingDir creates a working directory layout
 // according to the given directory mappings.
 //
 // Working dir is derived from the executable file, and if parent is true,
-// it is the parent dir of the exe file, otherwise the path where the exe file located is used.
+// it is the parent dir of the exe file, otherwise it's the path where the exe file located.
 //
 // Directories will be created with the given names and/or paths in dirs.
 // For example, to create a working dir layout of
@@ -52,7 +44,7 @@ func NewWorkingDir(parent bool, dirs []*DirInfo) *WorkingDir {
 //          └─error.log
 //
 //  call
-//  NormalizeWorkingDir(true, []DirInfo{
+//  NewWorkingDir(true, []DirInfo{
 // 		{Name: "bin", Mode: 0755},
 //		{Name: "data", Mode: 0755},
 //		{Name: "etc", Mode: 0755},
@@ -60,7 +52,21 @@ func NewWorkingDir(parent bool, dirs []*DirInfo) *WorkingDir {
 //		{Name: "log", Mode: 0755},
 //   }]
 // NOTE: This method is idempotent.
-func (dir *WorkingDir) NormalizeWorkingDir(parent bool, dirs []*DirInfo) {
+func NewWorkingDir(parent bool, dirs []*DirInfo) *WorkingDir {
+	wd := &WorkingDir{
+		Directories: []string{},
+	}
+
+	wd.normalizeWorkingDir(parent, dirs)
+
+	return wd
+}
+
+// normalizeWorkingDir normalize a working directory layout
+// according to the given directory mappings.
+//
+// NOTE: This method is idempotent.
+func (dir *WorkingDir) normalizeWorkingDir(parent bool, dirs []*DirInfo) {
 	path, err := os.Executable()
 	if err != nil {
 		log.Fatalln("get working dir failed", err)
@@ -91,11 +97,13 @@ func (dir *WorkingDir) NormalizeWorkingDir(parent bool, dirs []*DirInfo) {
 	}
 }
 
+// GetPath returns the working dir full path.
 func (dir *WorkingDir) GetPath() string {
 	return dir.Path
 }
 
-func GetExecFilePath() string  {
+// GetExecFilePath returns the directory part of the full path of exec.
+func GetExecFilePath() string {
 	dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
 	if err != nil {
 		log.Errorln("error when get working dir", err)

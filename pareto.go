@@ -15,6 +15,26 @@ type paretoKit struct {
 
 var bot = new(paretoKit)
 
+type Option func()
+
+func WithLogger(l *logger.Logger) Option {
+	return func() {
+		bot.logger = l
+	}
+}
+
+func WithWorkingDir(wd *env.WorkingDir) Option {
+	return func() {
+		bot.workingDir = wd
+	}
+}
+
+func SetupWithOpts(options ...Option) {
+	for _, o := range options {
+		o()
+	}
+}
+
 // Setup creates the default layout
 func Setup() {
 	bot.logger = logger.NewLogger(&logger.Options{
