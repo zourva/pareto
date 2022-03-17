@@ -27,7 +27,7 @@ func NewMQTTClient(network string, endpoint string) *MQTTClient {
 	}
 
 	if !c.create() {
-		log.Errorln("MQTT client: init failed")
+		log.Errorln("mqtt client: init failed")
 		return nil
 	}
 
@@ -37,17 +37,17 @@ func NewMQTTClient(network string, endpoint string) *MQTTClient {
 func (c *MQTTClient) create() bool {
 	conn, err := net.Dial(c.network, c.endpoint)
 	if err != nil {
-		log.Errorf("MQTT client: failed to connect to %s: %s", c.endpoint, err)
+		log.Errorf("mqtt client: failed to connect to %s: %s", c.endpoint, err)
 		return false
 	}
 
 	mqc := paho.NewClient(paho.ClientConfig{
 		Conn: conn,
 		OnServerDisconnect: func(why *paho.Disconnect) {
-			log.Warnln("MQTT client: receive DISCONNECT from MQTT broker:", *why)
+			log.Warnln("mqtt client: receive DISCONNECT from mqtt broker:", *why)
 		},
 		OnClientError: func(err error) {
-			log.Infoln("MQTT client: receive DISCONNECT from MQTT broker")
+			log.Infoln("mqtt client: receive DISCONNECT from mqtt broker")
 		},
 	})
 
@@ -63,10 +63,10 @@ func (c *MQTTClient) create() bool {
 func (c *MQTTClient) Connect(connMsg *paho.Connect) error {
 	ca, err := c.Client.Connect(context.Background(), connMsg)
 	if err != nil {
-		log.Errorf("MQTT client: connect to ni server %s failed: %v, %v\n", c.endpoint, err)
+		log.Errorf("mqtt client: connect to ni server %s failed: %v\n", c.endpoint, err)
 
 		if ca != nil {
-			log.Errorf("MQTT client: reason: %d - %s\n", ca.ReasonCode, ca.Properties.ReasonString)
+			log.Errorf("mqtt client: reason: %d - %s\n", ca.ReasonCode, ca.Properties.ReasonString)
 		}
 
 		return err
@@ -74,19 +74,19 @@ func (c *MQTTClient) Connect(connMsg *paho.Connect) error {
 
 	if ca != nil && ca.ReasonCode != 0 {
 		if ca.Properties != nil {
-			log.Errorf("MQTT client: failed to connect to %s : %d - %s\n",
+			log.Errorf("mqtt client: failed to connect to %s : %d - %s\n",
 				c.endpoint, ca.ReasonCode, ca.Properties.ReasonString)
-			return errors.New("MQTT connect failure: " + box.Itoa(int(ca.ReasonCode)) + ca.Properties.ReasonString)
+			return errors.New("mqtt connect failure: " + box.Itoa(int(ca.ReasonCode)) + ca.Properties.ReasonString)
 		} else {
-			log.Errorf("MQTT client: failed to connect to %s : %d\n",
+			log.Errorf("mqtt client: failed to connect to %s : %d\n",
 				c.endpoint, ca.ReasonCode)
-			return errors.New("MQTT connect failure: " + box.Itoa(int(ca.ReasonCode)))
+			return errors.New("mqtt connect failure: " + box.Itoa(int(ca.ReasonCode)))
 		}
 	}
 
 	c.addr = c.Client.Conn.LocalAddr().String()
 
-	log.Infoln("MQTT client: connected to broker", c.endpoint)
+	log.Infoln("mqtt client: connected to broker", c.endpoint)
 
 	return nil
 }

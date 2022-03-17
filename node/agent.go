@@ -12,24 +12,24 @@ import (
 	"time"
 )
 
-type Callback func()
+type AgentSideCallback func()
 
-// LifecycleHooks defines callbacks agent exposed
-type LifecycleHooks struct {
+// AgentSideHooks defines callbacks agent exposed
+type AgentSideHooks struct {
 	//called after initialized
-	OnInitialized Callback
+	OnInitialized AgentSideCallback
 
 	//called after successfully authed
-	OnAuthenticated Callback
+	OnAuthenticated AgentSideCallback
 
 	//called when preparing or re-preparing finished
-	OnMaintained Callback
+	OnMaintained AgentSideCallback
 
 	//called when stream message received
-	OnNasMessage func(*StreamMessage)
+	OnServerNasMsg func(*StreamMessage)
 
 	//called after stopped
-	OnStopped Callback
+	OnStopped AgentSideCallback
 }
 
 // option func-closure pattern
@@ -41,7 +41,7 @@ type agentOptions struct {
 	clientId  string //conn id assigned by Server
 	interval  uint32 //status report interval, in milliseconds
 	threshold uint32 //threshold to rebuild underlying connection
-	callbacks LifecycleHooks
+	callbacks AgentSideHooks
 }
 
 func defaultAgentOptions() agentOptions {
@@ -50,7 +50,7 @@ func defaultAgentOptions() agentOptions {
 		clientId:  emptyString,
 		interval:  defInterval,
 		threshold: 3,
-		callbacks: LifecycleHooks{},
+		callbacks: AgentSideHooks{},
 	}
 }
 
@@ -72,7 +72,7 @@ func WithThreshold(t uint32) AgentOption {
 	}
 }
 
-func WithCallbacks(cbs LifecycleHooks) AgentOption {
+func WithCallbacks(cbs AgentSideHooks) AgentOption {
 	return func(agent *Agent) {
 		agent.options.callbacks = cbs
 	}
@@ -186,6 +186,10 @@ func (a *Agent) Start() error {
 	a.clientConn = client
 	a.protoMgr = NewAgentProto(a, service)
 
+	if a.options.callbacks.OnInitialized != nil {
+		a.options.callbacks.OnInitialized()
+	}
+
 	a.Startup()
 
 	log.Infoln("node agent started")
@@ -205,6 +209,10 @@ func (a *Agent) Stop() {
 func (a *Agent) onStopping(args interface{}) {
 	a.protoMgr.doSignOut()
 	log.Infoln("agent stopping done")
+
+	if a.options.callbacks.OnStopped != nil {
+		a.options.callbacks.OnStopped()
+	}
 }
 
 func (a *Agent) onRestarting(args interface{}) {
@@ -236,6 +244,10 @@ func (a *Agent) onMaintaining(args interface{}) {
 
 	log.Infoln("agent maintaining done")
 
+	if a.options.callbacks.OnMaintained != nil {
+		a.options.callbacks.OnMaintained()
+	}
+
 	a.MoveToState(servicing)
 }
 
@@ -256,12 +268,17 @@ func (a *Agent) onAuthenticating(args interface{}) {
 	}
 
 	log.Infoln("agent authentication done")
+
+	if a.options.callbacks.OnAuthenticated != nil {
+		a.options.callbacks.OnAuthenticated()
+	}
+
 	a.MoveToState(maintaining)
 }
 
 func (a *Agent) onStreamMsg(msg *StreamMessage) {
 	log.Debugln("onStreamMsg callback:", *msg)
-	if a.options.callbacks.OnNasMessage != nil {
-		a.options.callbacks.OnNasMessage(msg)
+	if a.options.callbacks.OnServerNasMsg != nil {
+		a.options.callbacks.OnServerNasMsg(msg)
 	}
 }

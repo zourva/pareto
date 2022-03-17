@@ -112,7 +112,7 @@ func (bus *EventBus) doSubscribe(topic string, handler *eventHandler) error {
 	bus.lock.Lock()
 	defer bus.lock.Unlock()
 
-	log.Tracef("subscribe to %s with %v", topic, handler.callBack)
+	//log.Tracef("subscribe to %s with %v", topic, handler.callBack)
 	bus.handlers[topic] = append(bus.handlers[topic], handler)
 	return nil
 }

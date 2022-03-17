@@ -85,13 +85,13 @@ func (s *BaseService) GetCapabilities() interface{} {
 // Listen binds a handler to a subscribed topic.
 // Old handler will be replaced if already bounded.
 func (s *BaseService) Listen(topic string, fn interface{}) error {
-	log.Infof("[%s] subscribe to %s", s.name, topic)
+	log.Infof("%s subscribe to %s", s.name, topic)
 	return s.mgr.Subscribe(topic, fn)
 }
 
 // Notify broadcasts a notice message to all subscribers and assumes no replies.
 func (s *BaseService) Notify(topic string, args ...interface{}) error {
-	log.Debugf("[%s] publish to %s", s.name, topic)
+	log.Debugf("%s publish to %s", s.name, topic)
 	s.mgr.Publish(topic, args...)
 
 	return nil
@@ -101,7 +101,7 @@ func (s *BaseService) Notify(topic string, args ...interface{}) error {
 func (s *BaseService) ExposeMethod(id ntop.RpcMethod, fn interface{}) {
 	name := id.SerializedName()
 
-	log.Debugf("[%s] expose method %s", s.name, name)
+	log.Debugf("%s expose method %s", s.name, name)
 
 	s.mgr.Expose(name, fn)
 }
@@ -109,7 +109,7 @@ func (s *BaseService) ExposeMethod(id ntop.RpcMethod, fn interface{}) {
 // CallMethod calls a remote method identified by id.
 func (s *BaseService) CallMethod(id ntop.RpcMethod, args ...interface{}) (reflect.Value, error) {
 	name := id.SerializedName()
-	log.Debugf("[%s] invoke rpc %s", s.name, name)
+	log.Debugf("%s invoke rpc %s", s.name, name)
 
 	return s.mgr.Call(name, args...)
 }

@@ -14,6 +14,20 @@ import (
 	"time"
 )
 
+type ServerSideCallback func(*Node)
+
+// ServerSideHooks defines callbacks exposed on server side.
+type ServerSideHooks struct {
+	//called when a certain node is successfully authed
+	OnNodeJoin ServerSideCallback
+
+	//called when stream message received
+	OnNodeNasMsg func(*StreamMessage)
+
+	//called when a certain node checked out
+	OnNodeLeave ServerSideCallback
+}
+
 // option func-closure pattern
 type ServerOption func(agent *Server)
 
@@ -21,12 +35,18 @@ type ServerOption func(agent *Server)
 type serverOptions struct {
 	network  string
 	endpoint string //listen endpoint
+	hooks    ServerSideHooks
+	cluster  bool
+	raftAddr string
+	peerAddr []string
 }
 
 func defaultServerOptions() serverOptions {
 	return serverOptions{
 		network:  tcpNetwork,
 		endpoint: listenEndpoint,
+		hooks:    ServerSideHooks{},
+		cluster:  false,
 	}
 }
 
@@ -38,6 +58,22 @@ type Server struct {
 	options serverOptions
 	confMgr ServerConfManager
 	ssnMgr  *sessionManager
+}
+
+func WithServerHooks(cbs ServerSideHooks) ServerOption {
+	return func(s *Server) {
+		s.options.hooks = cbs
+	}
+}
+
+// ep is raft protocol listen address of this server node.
+// peers contains addresses of other raft server nodes.
+func WithClusterMode(ep string, peers []string) ServerOption {
+	return func(s *Server) {
+		s.options.cluster = true
+		s.options.peerAddr = peers
+		s.options.raftAddr = ep
+	}
 }
 
 func NewServer(endpoint string, opts ...ServerOption) *Server {

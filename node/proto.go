@@ -311,6 +311,10 @@ func (s *ServerProto) SignIn(ctx context.Context, req *SignInReq) (*SignInRsp, e
 
 	_ = s.upper.confMgr.SaveNode(node)
 
+	if s.upper.options.hooks.OnNodeJoin != nil {
+		s.upper.options.hooks.OnNodeJoin(node)
+	}
+
 	return &SignInRsp{}, nil
 }
 
