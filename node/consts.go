@@ -16,9 +16,14 @@ const (
 	emptyString     = ""
 
 	agentStateMachine = "Agent"
+)
 
-	sessionKeyId = "sessionKey"
-	clientKeyId  = "clientId"
+// to suppress golint
+type contextKey string
+
+const (
+	sessionKeyID contextKey = "sessionKey"
+	clientKeyID  contextKey = "clientID"
 )
 
 const (
@@ -28,7 +33,12 @@ const (
 )
 
 const (
+	// DES algorithm
 	DES uint32 = 1
+
+	// AES algorithm
 	AES uint32 = 2
+
+	// GM4 Guo Mi 4 algorithm
 	GM4 uint32 = 3
 )

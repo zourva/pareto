@@ -7,6 +7,7 @@ import (
 	"sync"
 )
 
+// Bus provides a message bus and expose API using pub/sub pattern.
 type Bus interface {
 	Publish(topic string, args ...interface{})
 	Subscribe(topic string, fn interface{}) error
@@ -14,8 +15,8 @@ type Bus interface {
 	Unsubscribe(topic string, fn interface{}) error
 }
 
-//based on https://github.com/asaskevich/EventBus/blob/master/event_bus.go
 // EventBus - box for handlers and callbacks.
+// based on https://github.com/asaskevich/EventBus/blob/master/event_bus.go
 type EventBus struct {
 	handlers map[string][]*eventHandler
 	lock     sync.RWMutex // a lock for the map
@@ -27,7 +28,7 @@ type eventHandler struct {
 	sync.Mutex // lock for an event handler - useful for running async callbacks serially
 }
 
-// New returns new EventBus with empty handlers.
+// NewBus returns a new EventBus with empty handlers.
 func NewBus() Bus {
 	b := &EventBus{
 		handlers: make(map[string][]*eventHandler),

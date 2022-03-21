@@ -42,10 +42,10 @@ func getAgentAuthKey(alg uint32, hid string, cipherKey []byte, nanoTs uint64) []
 		encrypted := make([]byte, len(padded))                            // 创建数组
 		blockMode.CryptBlocks(encrypted, padded)                          // 加密
 		return encrypted
-	} else {
-		log.Errorln("algorithm not supported yet")
-		return nil
 	}
+
+	log.Errorln("algorithm not supported yet")
+	return nil
 }
 
 // using algorithm:
@@ -68,10 +68,10 @@ func getServerAuthKey(alg uint32, id, hid string, cipherKey []byte, clientTs, ex
 		encrypted := make([]byte, len(padded))                            // 创建数组
 		blockMode.CryptBlocks(encrypted, padded)                          // 加密
 		return encrypted
-	} else {
-		log.Errorln("algorithm not supported yet")
-		return nil
 	}
+
+	log.Errorln("algorithm not supported yet")
+	return nil
 }
 
 func getCipherKey(alg uint32) []byte {

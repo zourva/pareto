@@ -8,22 +8,26 @@ import (
 	"runtime"
 	"runtime/pprof"
 
+	// profiling
 	_ "net/http/pprof"
 )
 
+// Options defines profiler functionalities.
 type Options struct {
-	CpuFile *os.File
+	CPUFile *os.File
 	MemFile *os.File
 
 	// http export addr, if empty, no http access
 	Endpoint string
 }
 
+// Profiler manages the profiling process.
 type Profiler struct {
 	options *Options
 	started bool
 }
 
+// NewProfiler creates a new profiler with the given options.
 func NewProfiler(opt *Options) *Profiler {
 	o := &Options{}
 
@@ -31,7 +35,7 @@ func NewProfiler(opt *Options) *Profiler {
 		o = opt
 	} else {
 		var err error
-		if o.CpuFile, err = os.Create("cpu.prof"); err != nil {
+		if o.CPUFile, err = os.Create("cpu.prof"); err != nil {
 			log.Fatalln("start cpu profiling failed", err)
 		}
 
@@ -50,16 +54,18 @@ func NewProfiler(opt *Options) *Profiler {
 	return p
 }
 
+// Start starts the profiler.
 func (p *Profiler) Start() {
 	p.commit()
 	p.started = true
 }
 
+// Stop stops the profiler.
 func (p *Profiler) Stop() {
 	p.started = false
 
-	if p.options.CpuFile != nil {
-		_ = p.options.CpuFile.Close()
+	if p.options.CPUFile != nil {
+		_ = p.options.CPUFile.Close()
 		pprof.StopCPUProfile()
 	}
 
@@ -71,21 +77,33 @@ func (p *Profiler) Stop() {
 	}
 }
 
-func (p *Profiler) WithCpuFile(f *os.File) {
+// WithCPUFile sets the cpu profiling file.
+// The old one, if any, will be closed.
+func (p *Profiler) WithCPUFile(f *os.File) {
 	if p.started {
 		log.Warnln("profiler is running already, ignored")
 		return
 	}
 
+	if p.options.CPUFile != nil {
+		_ = p.options.CPUFile.Close()
+	}
+
 	if f != nil {
-		p.options.CpuFile = f
+		p.options.CPUFile = f
 	}
 }
 
+// WithMemFile sets the memory profiling file.
+// The old one, if any, will be closed.
 func (p *Profiler) WithMemFile(f *os.File) {
 	if p.started {
 		log.Warnln("profiler is running already, ignored")
 		return
+	}
+
+	if p.options.MemFile != nil {
+		_ = p.options.MemFile.Close()
 	}
 
 	if f != nil {
@@ -93,7 +111,9 @@ func (p *Profiler) WithMemFile(f *os.File) {
 	}
 }
 
-func (p *Profiler) WithHttpEndpoint(ep string) {
+// WithHTTPEndpoint sets the endpoint, which is set to
+// localhost:6060 by default.
+func (p *Profiler) WithHTTPEndpoint(ep string) {
 	if p.started {
 		log.Warnln("profiler is running already, ignored")
 		return
@@ -105,8 +125,8 @@ func (p *Profiler) WithHttpEndpoint(ep string) {
 }
 
 func (p *Profiler) commit() {
-	if p.options.CpuFile != nil {
-		f := p.options.CpuFile
+	if p.options.CPUFile != nil {
+		f := p.options.CPUFile
 		_ = f.Close()
 		pprof.StopCPUProfile()
 

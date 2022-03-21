@@ -27,9 +27,9 @@ func ValidateEndpoint(ep string) bool {
 	return true
 }
 
-// ParseUdpAddr parses the given ep, which should be in format "host:port",
+// ParseUDPAddr parses the given ep, which should be in format "host:port",
 // to a three elements tuple <host, port, net.UDPAddr>.
-func ParseUdpAddr(endpoint string) (string, int, *net.UDPAddr) {
+func ParseUDPAddr(endpoint string) (string, int, *net.UDPAddr) {
 	ss := strings.Split(endpoint, ":")
 	host := ss[0]
 	port, _ := strconv.ParseInt(ss[1], 10, 32)

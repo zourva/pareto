@@ -12,13 +12,14 @@ import (
 	"time"
 )
 
-// agent protocol stack entity
+// AgentProto defines protocol stack entity of agent side.
 type AgentProto struct {
 	upper  *Agent
 	lower  S1ServiceClient
 	stream S1Service_StreamTransferClient
 }
 
+// NewAgentProto creates a protocol stack impl of agent side.
 func NewAgentProto(upper *Agent, lower S1ServiceClient) *AgentProto {
 	return &AgentProto{
 		upper: upper,
@@ -27,13 +28,13 @@ func NewAgentProto(upper *Agent, lower S1ServiceClient) *AgentProto {
 }
 
 func (a *AgentProto) getContextPiggybacked() context.Context {
-	md := metadata.New(map[string]string{clientKeyId: a.upper.clientId})
+	md := metadata.New(map[string]string{clientKeyID: a.upper.clientID})
 	return metadata.NewOutgoingContext(context.Background(), md)
 }
 
 // sign up & update provision info
 func (a *AgentProto) doSignUp() bool {
-	id := box.CpuId()
+	id := box.CPUID()
 	timestamp := box.TimeNowUs()
 	key := getAgentAuthKey(AES, id, getCipherKey(AES), timestamp)
 	if key == nil {
@@ -65,7 +66,7 @@ func (a *AgentProto) doSignUp() bool {
 	}
 
 	// no update manually, reload from config manager
-	//a.upper.clientId = rsp.Id
+	//a.upper.clientID = rsp.Id
 
 	return true
 }
@@ -177,11 +178,14 @@ func (a *AgentProto) sendStream(msg *StreamMessage) error {
 
 type streamProcHandler func(S1Service_StreamTransferServer, *StreamMessage) (*StreamMessage, error)
 
+// ServerProto defines the process and function entity of
+// server side of the S1 interface.
 type ServerProto struct {
 	upper    *Server
 	handlers map[Procedure]streamProcHandler
 }
 
+// NewServerProto creates server protocol impl.
 func NewServerProto(upper *Server) *ServerProto {
 	s := &ServerProto{
 		upper:    upper,
@@ -193,10 +197,10 @@ func NewServerProto(upper *Server) *ServerProto {
 	return s
 }
 
-func (s *ServerProto) getClientId(ctx context.Context) string {
+func (s *ServerProto) getClientID(ctx context.Context) string {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if ok {
-		return md.Get(clientKeyId)[0]
+		return md.Get(clientKeyID)[0]
 	}
 
 	return emptyString
@@ -209,7 +213,7 @@ func (s *ServerProto) validate(ctx context.Context) (string, error) {
 		return emptyString, status.Errorf(codes.Code(ErrorCode_IntegrityError), "metadata is not provided")
 	}
 
-	id := md.Get(clientKeyId)[0]
+	id := md.Get(clientKeyID)[0]
 	if len(id) == 0 {
 		log.Errorf("metadata is invalid")
 		return emptyString, status.Errorf(codes.Code(ErrorCode_IntegrityError), "metadata is invalid")
@@ -240,14 +244,14 @@ func (s *ServerProto) SignUp(ctx context.Context, req *SignUpReq) (*SignUpRsp, e
 	expire := uint64(time.Now().Unix() + 7*24*3600)
 
 	// duplicate SignUp
-	if len(session.clientId) > 0 {
-		id = session.clientId
+	if len(session.clientID) > 0 {
+		id = session.clientID
 		node := s.upper.confMgr.GetNode(id)
 		if node != nil {
 			expire = node.ExpireTime
 		}
 
-		log.Infof("client %s duplicate SignUp", session.clientId)
+		log.Infof("client %s duplicate SignUp", session.clientID)
 	}
 
 	// session creation phase II
@@ -271,6 +275,7 @@ func (s *ServerProto) SignUp(ctx context.Context, req *SignUpReq) (*SignUpRsp, e
 	}, nil
 }
 
+// SignIn handles node signing in.
 func (s *ServerProto) SignIn(ctx context.Context, req *SignInReq) (*SignInRsp, error) {
 	log.Traceln("SignIn request received:", *req)
 
@@ -285,20 +290,21 @@ func (s *ServerProto) SignIn(ctx context.Context, req *SignInReq) (*SignInRsp, e
 	}
 
 	// duplicate SignIn or there's proceeding SignUp
-	if len(session.clientId) > 0 {
-		log.Infof("client %s duplicate SignIn, ignore", session.clientId)
+	if len(session.clientID) > 0 {
+		log.Infof("client %s duplicate SignIn, ignore", session.clientID)
 		return &SignInRsp{}, nil
 	}
 
 	// load, update and write back node info
-	if id, err := s.validate(ctx); err != nil {
+	id, err := s.validate(ctx)
+	if err != nil {
 		log.Errorf("metadata is not provided")
 		return nil, err
-	} else {
-		session.clientId = id
 	}
 
-	node := s.upper.confMgr.GetNode(session.clientId)
+	session.clientID = id
+
+	node := s.upper.confMgr.GetNode(session.clientID)
 	if node == nil {
 		log.Errorf("node info is not found")
 		return nil, status.Errorf(codes.Code(ErrorCode_NotFound), "node is not found")
@@ -324,7 +330,7 @@ func (s *ServerProto) SignOut(ctx context.Context, req *SignOutReq) (*SignOutRsp
 
 	session := s.getSession(ctx)
 	if session != nil {
-		node := s.upper.confMgr.GetNode(session.clientId)
+		node := s.upper.confMgr.GetNode(session.clientID)
 		if node != nil {
 			node.Status = 0
 			node.UpdateTime = node.SignInTime
@@ -335,14 +341,18 @@ func (s *ServerProto) SignOut(ctx context.Context, req *SignOutReq) (*SignOutRsp
 	return &SignOutRsp{}, nil
 }
 
+// Report provides a report status request rpc method
 func (s *ServerProto) Report(ctx context.Context, req *ReportStatusReq) (*empty.Empty, error) {
 	panic("implement me")
 }
 
+// Config provides a configuration request rpc method
 func (s *ServerProto) Config(ctx context.Context, req *GetConfigReq) (*GetConfigRsp, error) {
 	panic("implement me")
 }
 
+// StreamTransfer runs in a poll pattern to recv from stream
+//  and handles agent-initiated bidirectional service.
 func (s *ServerProto) StreamTransfer(server S1Service_StreamTransferServer) error {
 	for {
 		msg, err := server.Recv()
@@ -397,7 +407,7 @@ func (s *ServerProto) getSession(ctx context.Context) *session {
 
 func (s *ServerProto) onReady(server S1Service_StreamTransferServer, msg *StreamMessage) (*StreamMessage, error) {
 	if msg.Proc == Procedure_Initiate {
-		log.Infoln("server installed watcher for client", s.getClientId(server.Context()))
+		log.Infoln("server installed watcher for client", s.getClientID(server.Context()))
 
 		if err := s.upper.ssnMgr.updateStream(&server); err != nil {
 			log.Errorln("updateStream failed:", err)

@@ -7,26 +7,26 @@ import (
 	"sync"
 )
 
-// RpcServer defines callee side of an RPC service.
-type RpcServer interface {
+// RPCServer defines callee side of an RPC service.
+type RPCServer interface {
 	//Expose exposes an service by associating a function handler.
 	Expose(name string, fn interface{})
 }
 
-// RpcClient defines caller side of an RPC service.
-type RpcClient interface {
+// RPCClient defines caller side of an RPC service.
+type RPCClient interface {
 	//Call calls an remote service identified by its name with the given args.
 	Call(name string, args ...interface{}) (reflect.Value, error)
 }
 
-// Rpc implements both sides of RPC service.
-type Rpc interface {
-	RpcServer
-	RpcClient
+// RPC implements both sides of RPC service.
+type RPC interface {
+	RPCServer
+	RPCClient
 }
 
-// RpcMethod defines the identity of an rpc method.
-type RpcMethod struct {
+// RPCMethod defines the identity of an rpc method.
+type RPCMethod struct {
 	Service string
 	Object  string
 	Method  string
@@ -36,15 +36,17 @@ type RpcMethod struct {
 //  service.object.method
 // e.g.:
 //  webserver.cookie.get   #
-func (r *RpcMethod) SerializedName() string {
+func (r *RPCMethod) SerializedName() string {
 	return fmt.Sprintf("%s.%s.%s", r.Service, r.Object, r.Method)
 }
 
+// Resolver holds handlers of rpc service.
 type Resolver struct {
 	sync.Mutex
 	handlers map[string]reflect.Value
 }
 
+// Resolve get registered handler of the given name. return nil if not found.
 func (r *Resolver) Resolve(name string, args []reflect.Value) (reflect.Value, error) {
 	return r.handlers[name], nil
 }
@@ -56,14 +58,16 @@ func (r *Resolver) register(name string, fn interface{}) {
 	r.handlers[name] = reflect.ValueOf(fn)
 }
 
-type RpcImpl struct {
+// RPCImpl implements RPC interface, including both server and client.
+type RPCImpl struct {
 	//network  string
 	//endpoint string
 	resolver *Resolver
 }
 
-func NewRpc() Rpc {
-	inst := &RpcImpl{
+// NewRPC creates a new RPC server and client.
+func NewRPC() RPC {
+	inst := &RPCImpl{
 		//network:  "unix",
 		//endpoint: env.GetExecFilePath() + "/rpc.sock",
 	}
@@ -78,11 +82,13 @@ func NewRpc() Rpc {
 	return inst
 }
 
-func (r *RpcImpl) Expose(name string, fn interface{}) {
+//Expose exposes an service by associating a function handler.
+func (r *RPCImpl) Expose(name string, fn interface{}) {
 	r.resolver.register(name, fn)
 }
 
-func (r *RpcImpl) Call(name string, args ...interface{}) (reflect.Value, error) {
+//Call calls an remote service identified by its name with the given args.
+func (r *RPCImpl) Call(name string, args ...interface{}) (reflect.Value, error) {
 	//return r.client.SendV(name, args)
 	fn, ok := r.resolver.handlers[name]
 	if !ok {

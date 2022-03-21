@@ -5,6 +5,7 @@ go 1.16
 require (
 	github.com/BurntSushi/toml v1.0.0
 	github.com/eclipse/paho.golang v0.10.0
+	github.com/eclipse/paho.mqtt.golang v1.3.5
 	github.com/golang/protobuf v1.4.3
 	github.com/mochi-co/mqtt v1.1.1
 	github.com/nicksnyder/go-i18n/v2 v2.2.0

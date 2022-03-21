@@ -9,10 +9,13 @@ import (
 	"time"
 )
 
+// MQTTServer provides an MQTT v3/v3.1.1 compatible broker impl.
 type MQTTServer struct {
 	*mqtt.Server
 }
 
+// NewMQTTServer creates a single node MQTT broker with the given name and
+// listen address endpoint.
 func NewMQTTServer(name string, endpoint string) *MQTTServer {
 	// create the new MQTT Server
 	server := &MQTTServer{
@@ -27,37 +30,37 @@ func NewMQTTServer(name string, endpoint string) *MQTTServer {
 		Auth: new(auth.Allow),
 	})
 	if err != nil {
-		log.Fatalln("MQTT broker add listener failed:", err)
+		log.Fatalln("mqtt broker add listener failed:", err)
 	}
 
 	// Add OnConnect Event Hook
 	server.Events.OnConnect = func(cl events.Client, pk events.Packet) {
-		log.Infof("<<MQTT broker OnConnect client connected %s: %+v\n", cl.ID, pk)
+		log.Infof("<<mqtt broker OnConnect client connected %s: %+v\n", cl.ID, pk)
 	}
 
 	// Add OnDisconnect Event Hook
 	server.Events.OnDisconnect = func(cl events.Client, err error) {
-		log.Infof("<<MQTT broker OnDisconnect client disconnected %s: %v\n", cl.ID, err)
+		log.Infof("<<mqtt broker OnDisconnect client disconnected %s: %v\n", cl.ID, err)
 	}
 
 	return server
 }
 
+// Start starts the broker.
 func (s *MQTTServer) Start() {
-	// start the broker in non-blocking mode
-	go func() {
-		err := s.Serve()
-		if err != nil {
-			log.Fatalln("MQTT broker serve failed:", err)
-		}
-	}()
+	// start the broker.
+	// NOTE: Serve is non-blocking.
+	if err := s.Serve(); err != nil {
+		log.Fatalln("mqtt broker serve failed:", err)
+	}
 
 	time.Sleep(time.Millisecond * 500)
 
-	log.Infoln("MQTT broker started")
+	log.Infoln("mqtt broker started")
 }
 
+// Stop stops the broker.
 func (s *MQTTServer) Stop() {
 	_ = s.Close()
-	log.Infoln("MQTT broker stopped")
+	log.Infoln("mqtt broker stopped")
 }

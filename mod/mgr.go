@@ -6,9 +6,11 @@ import (
 	"sync"
 )
 
+// ServiceManager provides inter-service communication channels
+// and manages all services implementing the Service interface.
 type ServiceManager interface {
 	ntop.Bus
-	ntop.Rpc
+	ntop.RPC
 
 	// Startup starts the manager.
 	Startup() error
@@ -44,7 +46,7 @@ type serviceDescriptor struct {
 type ServiceManagerImpl struct {
 	//low level bus & rpc service
 	ntop.Bus
-	ntop.Rpc
+	ntop.RPC
 
 	//composite a base service
 	*BaseService
@@ -65,6 +67,8 @@ const (
 	// methods
 )
 
+// GetService returns the service associated with the
+// given name or nil if not found.
 func (s *ServiceManagerImpl) GetService(name string) Service {
 	if sd, ok := s.services.Load(name); ok {
 		return sd.(*serviceDescriptor).service
@@ -73,6 +77,8 @@ func (s *ServiceManagerImpl) GetService(name string) Service {
 	return nil
 }
 
+// Detached returns true if the service is detached from the manager already.
+// return false when the service is not found.
 func (s *ServiceManagerImpl) Detached(name string) bool {
 	if sd, ok := s.services.Load(name); ok {
 		return sd.(*serviceDescriptor).detached
@@ -81,6 +87,9 @@ func (s *ServiceManagerImpl) Detached(name string) bool {
 	return false
 }
 
+// DetachService detaches the service, identified by the name, from the manager.
+// Detached services will not be joined when service manager exits.
+// Does nothing when the service is not found.
 func (s *ServiceManagerImpl) DetachService(name string) {
 	if svc, ok := s.services.Load(name); ok {
 		s.services.Store(name, &serviceDescriptor{
@@ -90,6 +99,8 @@ func (s *ServiceManagerImpl) DetachService(name string) {
 	}
 }
 
+// AttachService registers a service with the given name and instance.
+// Instance will be substituted if already exists.
 func (s *ServiceManagerImpl) AttachService(name string, svc Service) {
 	s.services.Store(name, &serviceDescriptor{
 		service:  svc,
@@ -97,6 +108,7 @@ func (s *ServiceManagerImpl) AttachService(name string, svc Service) {
 	})
 }
 
+// Shutdown stops the manager and all services.
 func (s *ServiceManagerImpl) Shutdown() {
 	//notify all attached services
 	_ = s.Notify(serviceStop)
@@ -116,6 +128,7 @@ func (s *ServiceManagerImpl) Shutdown() {
 	log.Infoln("service manager shutdown")
 }
 
+// Startup starts the manager.
 func (s *ServiceManagerImpl) Startup() error {
 	// init services
 	s.services.Range(func(key, value interface{}) bool {
@@ -171,13 +184,14 @@ func (s *ServiceManagerImpl) onServiceDown(serviceName string) {
 	}
 }
 
+// NewServiceManager creates a new service manager impl.
 func NewServiceManager() ServiceManager {
 	sm := &ServiceManagerImpl{
 	}
 
 	sm.BaseService = NewBaseService("service manager", sm)
 	sm.Bus = ntop.NewBus()
-	sm.Rpc = ntop.NewRpc()
+	sm.RPC = ntop.NewRPC()
 	sm.done = make(chan struct{})
 
 	log.Infoln("service manager created")

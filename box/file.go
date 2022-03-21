@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// return true if path exist and false otherwise with nil error
+// PathExists returns true if path exist and false otherwise with nil error
 //or error and false when error occurred
 func PathExists(path string) (bool, error) {
 	_, err := os.Stat(path)
@@ -26,6 +26,8 @@ func PathExists(path string) (bool, error) {
 	return false, err
 }
 
+// GetWorkingDir returns the base dir path of the
+// executable that is calling this function.
 func GetWorkingDir() string {
 	dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
 	if err != nil {
@@ -35,7 +37,9 @@ func GetWorkingDir() string {
 	return strings.Replace(dir, "\\", "/", -1)
 }
 
-// returns true & nil if exists; false & error when error and false & nil when not exists
+// ProcessExists returns true & nil if exists, or
+// false & error when error, or,
+// false & nil when not exists
 func ProcessExists(pid uint32) (bool, error) {
 	_, err := os.FindProcess(int(pid))
 	if err != nil {

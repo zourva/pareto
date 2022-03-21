@@ -5,8 +5,10 @@ import (
 	"time"
 )
 
+// Action defines the action to execute when a state is reached.
 type Action func(args interface{})
 
+// State is the state meta info.
 type State struct {
 	Name   string //name of this state
 	Ticks  uint   //optional ticks to wait before trigger action, 0 means no wait
@@ -17,6 +19,7 @@ type State struct {
 	machine *StateMachine //reference to owner
 }
 
+// StateMachine sums all states and related options to make a DFA.
 type StateMachine struct {
 	name   string
 	states map[string]*State
@@ -32,6 +35,7 @@ type StateMachine struct {
 	trace     bool
 }
 
+// NewStateMachine creates a new state machine with the given name and ticker duration.
 func NewStateMachine(name string, precision time.Duration) *StateMachine {
 	sm := &StateMachine{
 		name:      name,
@@ -69,15 +73,22 @@ func (s *State) trigger() {
 	}
 }
 
+// GetState returns the current state.
 func (sm *StateMachine) GetState() string {
 	return sm.current
 }
 
+// EnableStateTrace enables or disables the tracing of internal flow.
 func (sm *StateMachine) EnableStateTrace(on bool) {
 	sm.trace = on
 }
 
+// MoveToState moves the current state to the vien one
 func (sm *StateMachine) MoveToState(s string) bool {
+	if sm.current == s {
+
+	}
+
 	if _, exist := sm.states[s]; !exist {
 		log.Errorf("state machine %s state %s not found", sm.name, s)
 		return false
@@ -93,6 +104,8 @@ func (sm *StateMachine) MoveToState(s string) bool {
 	return true
 }
 
+// RegisterState registers a new state to the machine.
+// The old is replaced if a state with the same name exists.
 func (sm *StateMachine) RegisterState(s *State) bool {
 	if s == nil || len(s.Name) == 0 {
 		log.Errorf("state machine %s reg invalid state, ignored", sm.name)
@@ -108,6 +121,7 @@ func (sm *StateMachine) RegisterState(s *State) bool {
 	return true
 }
 
+// RegisterStates registers a slice of states to the machine.
 func (sm *StateMachine) RegisterStates(ss []*State) bool {
 	for _, s := range ss {
 		if !sm.RegisterState(s) {
@@ -118,6 +132,9 @@ func (sm *StateMachine) RegisterStates(ss []*State) bool {
 	return true
 }
 
+// SetStartingState sets a state, identified by the given name,
+// as the starting state. False is returned if no state found
+// for the given name, or true is returned.
 func (sm *StateMachine) SetStartingState(state string) bool {
 	_, ok := sm.states[state]
 	if !ok {
@@ -129,6 +146,9 @@ func (sm *StateMachine) SetStartingState(state string) bool {
 	return true
 }
 
+// SetStoppingState sets a state, identified by the given name,
+// as the stopping state. False is returned if no state found
+// for the given name, or true is returned.
 func (sm *StateMachine) SetStoppingState(state string) bool {
 	_, ok := sm.states[state]
 	if !ok {
@@ -140,6 +160,7 @@ func (sm *StateMachine) SetStoppingState(state string) bool {
 	return true
 }
 
+// Startup starts running of the machine.
 func (sm *StateMachine) Startup() bool {
 	if len(sm.states) == 0 {
 		log.Errorln("state machine %s has no states registered, cannot startup")
@@ -178,18 +199,22 @@ func (sm *StateMachine) Shutdown() {
 	log.Infof("state machine %s exited", sm.name)
 }
 
+// Pause pauses the internal loop engine.
 func (sm *StateMachine) Pause() {
 	sm.ticker.Stop()
 }
 
+// Resume resumes the internal loop engine.
 func (sm *StateMachine) Resume() {
 	sm.ticker.Reset(sm.precision)
 }
 
+// SaveState saves the current state for later on restoration.
 func (sm *StateMachine) SaveState() {
 	sm.saved = sm.current
 }
 
+// RestoreState moves to the latest saved state.
 func (sm *StateMachine) RestoreState() {
 	sm.MoveToState(sm.saved)
 }

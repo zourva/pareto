@@ -6,10 +6,13 @@ import (
 	"golang.org/x/text/language"
 )
 
+// Dictionary provides key-value based mappings,
+// and support i18n.
 type Dictionary struct {
 	bundle *i18n.Bundle
 }
 
+// NewDictionary creates a dictionary.
 func NewDictionary() *Dictionary {
 	d := &Dictionary{}
 
@@ -24,10 +27,7 @@ func NewDictionary() *Dictionary {
 	return d
 }
 
+// Load loads kv mappings from file or db.
 func (d *Dictionary) Load() {
-
-}
-
-func (d *Dictionary) Switch() {
 
 }

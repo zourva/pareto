@@ -54,7 +54,7 @@ func MaxUInt(a, b uint) uint {
 	return b
 }
 
-// Clamp returns the value rounded to [min, max]
+// ClampI32 returns the value rounded to [min, max]
 func ClampI32(min, max, val int32) int32 {
 	if val < min {
 		return min
@@ -67,7 +67,7 @@ func ClampI32(min, max, val int32) int32 {
 	return val
 }
 
-// Clamp returns the value rounded to [min, max]
+// ClampU32 returns the value rounded to [min, max]
 func ClampU32(min, max, val uint32) uint32 {
 	if val < min {
 		return min

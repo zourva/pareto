@@ -14,6 +14,7 @@ import (
 	"time"
 )
 
+// ServerSideCallback defines the callback used by hooks.
 type ServerSideCallback func(*Node)
 
 // ServerSideHooks defines callbacks exposed on server side.
@@ -28,7 +29,7 @@ type ServerSideHooks struct {
 	OnNodeLeave ServerSideCallback
 }
 
-// option func-closure pattern
+// ServerOption func-closure pattern
 type ServerOption func(agent *Server)
 
 // serverOptions used by server
@@ -60,14 +61,16 @@ type Server struct {
 	ssnMgr  *sessionManager
 }
 
+// WithServerHooks defines server side hooks of a client.
 func WithServerHooks(cbs ServerSideHooks) ServerOption {
 	return func(s *Server) {
 		s.options.hooks = cbs
 	}
 }
 
-// ep is raft protocol listen address of this server node.
-// peers contains addresses of other raft server nodes.
+// WithClusterMode enables a server to be in cluster mode using
+// ep as the raft protocol listen address, and the given peers
+// containing addresses of the initial raft seed nodes.
 func WithClusterMode(ep string, peers []string) ServerOption {
 	return func(s *Server) {
 		s.options.cluster = true
@@ -76,6 +79,7 @@ func WithClusterMode(ep string, peers []string) ServerOption {
 	}
 }
 
+// NewServer creates a node server with the given endpoint and other options.
 func NewServer(endpoint string, opts ...ServerOption) *Server {
 	if !box.ValidateEndpoint(endpoint) {
 		return nil
@@ -148,11 +152,15 @@ func (s *Server) Stop(graceful bool) {
 	log.Infoln("node server stopped")
 }
 
+// TagRPC can attach some information to the given context.
+// The context used for the rest lifetime of the RPC will be derived from
+// the returned context.
 func (s *Server) TagRPC(ctx context.Context, tag *stats.RPCTagInfo) context.Context {
 	//log.Traceln("see rpc call:", tag.FullMethodName)
 	return ctx
 }
 
+// HandleRPC processes the RPC stats.
 func (s *Server) HandleRPC(ctx context.Context, stats stats.RPCStats) {
 	//log.Traceln("handle rpc call:", ctx.Value(r.ConnId))
 	return
@@ -165,7 +173,7 @@ func (s *Server) TagConn(ctx context.Context, connTag *stats.ConnTagInfo) contex
 		connTag.LocalAddr.String())
 
 	// piggyback a <session key id, session key> pair when a new connection is created
-	return context.WithValue(ctx, sessionKeyId, connTag)
+	return context.WithValue(ctx, sessionKeyID, connTag)
 }
 
 // HandleConn handles creation and deletion of connection sessions (phase I),

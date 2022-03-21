@@ -7,9 +7,9 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zourva/pareto/box"
 	"net"
-	"time"
 )
 
+// MQTTClient provides an MQTT v5 compatible client impl.
 type MQTTClient struct {
 	*paho.Client
 	network  string        //network type string mqtt resides on
@@ -18,7 +18,7 @@ type MQTTClient struct {
 	stat     *statistician //internal statistician
 }
 
-//NewMQTTClient creates a client and establish a connection to the given broker.
+// NewMQTTClient creates a client and establish a connection to the given broker.
 func NewMQTTClient(network string, endpoint string) *MQTTClient {
 	c := &MQTTClient{
 		network:  network,
@@ -63,10 +63,10 @@ func (c *MQTTClient) create() bool {
 func (c *MQTTClient) Connect(connMsg *paho.Connect) error {
 	ca, err := c.Client.Connect(context.Background(), connMsg)
 	if err != nil {
-		log.Errorf("mqtt client: connect to ni server %s failed: %v\n", c.endpoint, err)
+		log.Errorf("mqtt client: connect to broker %s failed: %v", c.endpoint, err)
 
 		if ca != nil {
-			log.Errorf("mqtt client: reason: %d - %s\n", ca.ReasonCode, ca.Properties.ReasonString)
+			log.Errorf("mqtt client: reason: %d - %s", ca.ReasonCode, ca.Properties.ReasonString)
 		}
 
 		return err
@@ -74,14 +74,14 @@ func (c *MQTTClient) Connect(connMsg *paho.Connect) error {
 
 	if ca != nil && ca.ReasonCode != 0 {
 		if ca.Properties != nil {
-			log.Errorf("mqtt client: failed to connect to %s : %d - %s\n",
+			log.Errorf("mqtt client: failed to connect to %s : %d - %s",
 				c.endpoint, ca.ReasonCode, ca.Properties.ReasonString)
 			return errors.New("mqtt connect failure: " + box.Itoa(int(ca.ReasonCode)) + ca.Properties.ReasonString)
-		} else {
-			log.Errorf("mqtt client: failed to connect to %s : %d\n",
-				c.endpoint, ca.ReasonCode)
-			return errors.New("mqtt connect failure: " + box.Itoa(int(ca.ReasonCode)))
 		}
+
+		log.Errorf("mqtt client: failed to connect to %s : %d",
+			c.endpoint, ca.ReasonCode)
+		return errors.New("mqtt connect failure: " + box.Itoa(int(ca.ReasonCode)))
 	}
 
 	c.addr = c.Client.Conn.LocalAddr().String()
@@ -95,99 +95,4 @@ func (c *MQTTClient) Connect(connMsg *paho.Connect) error {
 // always close the network connection
 func (c *MQTTClient) Disconnect() error {
 	return c.Client.Disconnect(&paho.Disconnect{ReasonCode: 0})
-}
-
-type counters struct {
-	bytesSent uint64 //number bytes sent
-	bytesRecv uint64 //number bytes received
-	requests  uint64 //number requests sent
-	replies   uint64 //number replies received
-}
-
-func (c *counters) clear() {
-	c.bytesSent = 0
-	c.bytesRecv = 0
-	c.requests = 0
-	c.replies = 0
-}
-
-type kpis struct {
-	rps    uint64
-	ulRate uint64
-	dlRate uint64
-	delay  int64
-}
-
-func (k *kpis) clear() {
-	k.rps = 0
-	k.ulRate = 0
-	k.dlRate = 0
-	k.delay = 0
-}
-
-type statSession struct {
-	startTime int64
-	stopTime  int64
-	counters  counters
-}
-
-func (s *statSession) hackStart(szSent, nrReq uint64) {
-	s.startTime = time.Now().Unix()
-	s.counters.requests += nrReq
-	s.counters.bytesSent += szSent
-}
-
-func (s *statSession) hackStop(szRecv, nrRep uint64) {
-	s.stopTime = time.Now().Unix()
-	s.counters.bytesRecv += szRecv
-	s.counters.replies += nrRep
-}
-
-type statistician struct {
-	sampleTime int64
-	counters   counters
-	kpis       kpis
-}
-
-func newStatistician() *statistician {
-	s := &statistician{
-		sampleTime: time.Now().Unix(),
-	}
-
-	return s
-}
-
-func (s *statistician) session() *statSession {
-	return &statSession{}
-}
-
-func (s *statistician) updateCounters(ssn *statSession) {
-	s.kpis.delay = box.MaxI64(s.kpis.delay, ssn.stopTime-ssn.startTime)
-	s.counters.bytesSent += ssn.counters.bytesSent
-	s.counters.bytesRecv += ssn.counters.bytesRecv
-	s.counters.requests += ssn.counters.requests
-	s.counters.replies += ssn.counters.replies
-}
-
-func (s *statistician) sample(reset bool) *kpis {
-	now := time.Now().Unix()
-	duration := now - s.sampleTime
-	log.Traceln("now, start, duration", now, s.sampleTime, duration)
-	if duration == 0 {
-		log.Traceln("sample time too short, skip this round")
-		return &s.kpis
-	}
-
-	s.kpis.rps = s.counters.requests / uint64(duration)
-	s.kpis.dlRate = s.counters.bytesRecv / uint64(duration)
-	s.kpis.ulRate = s.counters.bytesSent / uint64(duration)
-
-	if reset {
-		s.kpis.clear()
-		s.counters.clear()
-	}
-
-	s.sampleTime = now
-
-	return &s.kpis
 }

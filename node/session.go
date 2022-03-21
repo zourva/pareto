@@ -25,7 +25,7 @@ type session struct {
 	stream *S1Service_StreamTransferServer
 
 	// the client id associated with this session
-	clientId string
+	clientID string
 
 	// timestamp, in Unix seconds, of session updating
 	updateTime int64
@@ -33,7 +33,7 @@ type session struct {
 
 // bind binds a client id to this session
 func (s *session) bind(cli string) {
-	s.clientId = cli
+	s.clientID = cli
 	s.updateTime = time.Now().Unix()
 }
 
@@ -76,7 +76,7 @@ func (sm *sessionManager) save(k *sessionKey) {
 	sm.sessions[k] = &session{
 		key:        k,
 		stream:     nil,
-		clientId:   "",
+		clientID:   "",
 		updateTime: time.Now().Unix(),
 	}
 
@@ -93,7 +93,7 @@ func (sm *sessionManager) getSessionByKey(k *sessionKey) *session {
 
 // getSessionByKey returns the session associated
 // with the given client id.
-func (sm *sessionManager) getSessionById(id string) *session {
+func (sm *sessionManager) getSessionByID(id string) *session {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -107,17 +107,17 @@ func (sm *sessionManager) delete(k *sessionKey) {
 
 	l := sm.sessions[k]
 
-	//cli := GetPlatoonManager().GetSessionByClientId(l.clientId)
+	//cli := GetPlatoonManager().GetSessionByClientId(l.clientID)
 	//if cli != nil {
 	//	cli.Pause()
 	//}
 
 	delete(sm.sessions, k)
-	delete(sm.indices, l.clientId)
+	delete(sm.indices, l.clientID)
 }
 
 func (sm *sessionManager) getSessionKey(ctx context.Context) *sessionKey {
-	key, ok := ctx.Value(sessionKeyId).(*sessionKey)
+	key, ok := ctx.Value(sessionKeyID).(*sessionKey)
 	if !ok {
 		return nil
 	}

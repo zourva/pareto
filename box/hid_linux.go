@@ -7,9 +7,9 @@ import (
 	"strings"
 )
 
-// CpuId returns the cpu identity of current host.
+// CPUID returns the cpu identity of current host.
 // The identity is retrieved by executing 'dmidecode -t processor|grep ID|head -1'.
-func CpuId() string {
+func CPUID() string {
 	cmd := exec.Command("/bin/sh", "-c", `dmidecode -t processor|grep ID|head -1`)
 
 	stdout, err := cmd.StdoutPipe()

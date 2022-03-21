@@ -5,9 +5,9 @@ import (
 	"regexp"
 )
 
-// CpuId returns the cpu identity of current host.
+// CPUID returns the cpu identity of current host.
 // The identity is retrieved by executing 'wmic cpu get ProcessorID'.
-func CpuId() string {
+func CPUID() string {
 	out, err := exec.Command("wmic", "cpu", "get", "ProcessorID").CombinedOutput()
 	if err != nil {
 		return ""

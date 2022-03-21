@@ -6,6 +6,7 @@ import (
 	"reflect"
 )
 
+// Service abstracts the service name
 type Service interface {
 	// GetName returns the name of service
 	GetName() string
@@ -53,31 +54,41 @@ func NewBaseService(name string, mgr ServiceManager) *BaseService {
 	return s
 }
 
+// GetName returns the name of service
 func (s *BaseService) GetName() string {
 	return s.name
 }
 
+// Detached returns true if the service is detached from its manager.
 func (s *BaseService) Detached() bool {
 	return s.mgr.Detached(s.name)
 }
 
+// Detach detaches the service from its manager.
+// Services are attached by default when creating,
+// and can be attached again when after detached.
 func (s *BaseService) Detach() {
 	s.mgr.DetachService(s.name)
 }
 
+//OnInitialize is called after the service is created
 func (s *BaseService) OnInitialize() bool {
 	log.Infoln("initializing service", s.name)
 	return true
 }
 
+//OnDestroying is called before the service is destroyed
 func (s *BaseService) OnDestroying() {
 	log.Infoln("destroying service", s.name)
 }
 
+// GetStatus returns collected data from each service
+// with a format of protocol message
 func (s *BaseService) GetStatus() interface{} {
 	return ""
 }
 
+//GetCapabilities returns the capabilities a service provides.
 func (s *BaseService) GetCapabilities() interface{} {
 	return ""
 }
@@ -98,7 +109,7 @@ func (s *BaseService) Notify(topic string, args ...interface{}) error {
 }
 
 // ExposeMethod expose a server-side method to the external world.
-func (s *BaseService) ExposeMethod(id ntop.RpcMethod, fn interface{}) {
+func (s *BaseService) ExposeMethod(id ntop.RPCMethod, fn interface{}) {
 	name := id.SerializedName()
 
 	log.Debugf("%s expose method %s", s.name, name)
@@ -107,7 +118,7 @@ func (s *BaseService) ExposeMethod(id ntop.RpcMethod, fn interface{}) {
 }
 
 // CallMethod calls a remote method identified by id.
-func (s *BaseService) CallMethod(id ntop.RpcMethod, args ...interface{}) (reflect.Value, error) {
+func (s *BaseService) CallMethod(id ntop.RPCMethod, args ...interface{}) (reflect.Value, error) {
 	name := id.SerializedName()
 	log.Debugf("%s invoke rpc %s", s.name, name)
 

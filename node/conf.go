@@ -24,7 +24,7 @@ const (
 	confKey   = "agentConf"
 )
 
-// Agent config, static & semi-static & dynamic
+// Conf defines agent config, static & semi-static & dynamic.
 type Conf struct {
 	Identity       string `json:"identity"`       //identity of current agent
 	ExpirationTime int64  `json:"expirationTime"` //current provision expiration time
@@ -33,6 +33,7 @@ type Conf struct {
 	RepeatTimes    uint32 `json:"repeatTimes"`    // number of times re-provisioned
 }
 
+// Node defines node info.
 type Node struct {
 	Identity   string `json:"identity"`   //identity of a node
 	Status     uint32 `json:"status"`     //node status
@@ -43,13 +44,15 @@ type Node struct {
 	UpdateTime uint64 `json:"updateTime"` //timestamp when recent update of provision info
 }
 
+// AgentConfManager defines config operations for agent side.
 type AgentConfManager interface {
 	GetConf() *Conf
 	SaveConf(c *Conf) error
 	NeedProvision() bool
-	UpdateProvision(newId string, expire uint64) bool
+	UpdateProvision(id string, expire uint64) bool
 }
 
+// ServerConfManager defines config operations for node on server side.
 type ServerConfManager interface {
 	GetNode(id string) *Node
 	SaveNode(n *Node) error
@@ -121,12 +124,12 @@ func (s *confManager) NeedProvision() bool {
 	return false
 }
 
-func (s *confManager) UpdateProvision(newId string, expire uint64) bool {
+func (s *confManager) UpdateProvision(id string, expire uint64) bool {
 	conf := s.GetConf()
-	conf.Identity = newId
+	conf.Identity = id
 	conf.ExpirationTime = int64(expire)
 	conf.LastUpdateTime = time.Now().Unix()
-	conf.RepeatTimes += 1
+	conf.RepeatTimes++
 
 	// update only when it's written 1st time
 	if conf.ProvisionTime == 0 {

@@ -5,7 +5,8 @@ import (
 	"time"
 )
 
-// for ref. http://docs.libuv.org/en/v1.x/loop.html
+// LoopRunHook defines loop lifecycle callbacks.
+// for ref, see http://docs.libuv.org/en/v1.x/loop.html
 type LoopRunHook struct {
 	//optional, called, once, before the underlying loop starts
 	BeforeRun func() error
@@ -20,7 +21,7 @@ type LoopRunHook struct {
 	BeforeQuit func() error
 }
 
-// loop configuration, all options have default values except CbWork
+// LoopConfig loop configuration, all options have default values except CbWork
 type LoopConfig struct {
 	//clock pulse interval in milliseconds, 0 means using the default(1000 ms)
 	Tick uint32
@@ -42,6 +43,7 @@ type LoopConfig struct {
 	BailOnError bool
 }
 
+// Loop interface exposed
 type Loop interface {
 	Name() string
 	Conf(conf LoopConfig) bool
@@ -50,6 +52,7 @@ type Loop interface {
 	Stop()
 }
 
+// NewLoop creates a new loop object with the given name and conf.
 func NewLoop(name string, conf LoopConfig) Loop {
 	ticks := time.Millisecond * 1000
 
@@ -74,7 +77,7 @@ const (
 	stopped
 )
 
-//simple breakable loop impl.
+//BreakableLoop provides a simple breakable loop impl.
 type BreakableLoop struct {
 	name  string
 	state uint32
@@ -84,10 +87,14 @@ type BreakableLoop struct {
 	wait  chan struct{}
 }
 
+// Name returns name of the loop.
 func (l *BreakableLoop) Name() string {
 	return l.name
 }
 
+// Conf configure the loop with the given configuration.
+// This methods should be called before Run and not be called
+// after the loop is running.
 func (l *BreakableLoop) Conf(conf LoopConfig) bool {
 	l.conf = conf
 
@@ -100,9 +107,11 @@ func (l *BreakableLoop) Conf(conf LoopConfig) bool {
 	return true
 }
 
-// not reentrant, must not be called from a callback.
-// NOTE: when the loop is configured to run in async mode,
-//user must make sure hook functions are goroutine-safe
+// Run starts the loop with the provided hooks.
+//
+// NOTE: Run is not re-entrant and must not be called within a callback.
+// When the loop is configured to run in async mode,
+// hook functions must be guaranteed to be goroutine-safe.
 func (l *BreakableLoop) Run(hooks LoopRunHook) {
 	if hooks.Working == nil {
 		log.Errorf("loop %s has not provide main callback func yet", l.name)
@@ -120,10 +129,12 @@ func (l *BreakableLoop) Run(hooks LoopRunHook) {
 	}
 }
 
+// Alive returns true if loop is running.
 func (l *BreakableLoop) Alive() bool {
 	return l.state == running
 }
 
+// Stop stops the internal timer, close channels and clear all states.
 func (l *BreakableLoop) Stop() {
 	close(l.quit)
 	l.tick.Stop()
@@ -133,17 +144,25 @@ func (l *BreakableLoop) Stop() {
 	l.state = stopped
 }
 
+func (l *BreakableLoop) runHook(pos string, hook func() error) bool {
+	if err := hook(); err != nil && l.conf.BailOnError {
+		log.Errorf("%s loop %s hook call failed: %v", l.name, pos, err)
+		return false
+	}
+
+	log.Debugf("%s loop %s hook called", pos, l.name)
+
+	return true
+}
+
 func (l *BreakableLoop) loop(hooks *LoopRunHook) {
 	var workCount uint32 = 0
 	var idleCount uint32 = 0
 
 	if hooks.BeforeRun != nil {
-		if err := hooks.BeforeRun(); err != nil && l.conf.BailOnError {
-			log.Errorf("%s loop BeforeQuit hook call failed: %v", l.name, err)
+		if !l.runHook("BeforeQuit", hooks.BeforeRun) {
 			return
 		}
-
-		log.Infof("%s loop BeforeRun hook called", l.name)
 	}
 
 	defer close(l.wait)
@@ -152,11 +171,9 @@ func (l *BreakableLoop) loop(hooks *LoopRunHook) {
 		select {
 		case <-l.quit:
 			if hooks.BeforeQuit != nil {
-				if err := hooks.BeforeQuit(); err != nil && l.conf.BailOnError {
-					log.Errorf("%s loop BeforeQuit hook call failed: %v", l.name, err)
+				if !l.runHook("BeforeQuit", hooks.BeforeQuit) {
 					return
 				}
-				log.Debugf("%s loop BeforeQuit hook called", l.name)
 			}
 
 			log.Infof("%s loop quit", l.name)
@@ -166,19 +183,15 @@ func (l *BreakableLoop) loop(hooks *LoopRunHook) {
 			idleCount++
 
 			if l.conf.Work == 0 || workCount%l.conf.Work == 0 {
-				if err := hooks.Working(); err != nil && l.conf.BailOnError {
-					log.Errorf("%s loop Working hook call failed: %v", l.name, err)
+				if !l.runHook("Working", hooks.Working) {
 					return
 				}
-				log.Tracef("%s loop Working hook called", l.name)
 			}
 
-			if (l.conf.Idle == 0 || idleCount%l.conf.Idle == 0) && hooks.Stalling != nil {
-				if err := hooks.Stalling(); err != nil && l.conf.BailOnError {
-					log.Errorf("%s loop Stalling hook call failed: %v", l.name, err)
+			if hooks.Stalling != nil && (l.conf.Idle == 0 || idleCount%l.conf.Idle == 0) {
+				if !l.runHook("Stalling", hooks.Stalling) {
 					return
 				}
-				log.Tracef("%s loop Stalling hook called", l.name)
 			}
 
 			//if l.conf.Quit != 0 && workCount%l.conf.Quit == 0 {

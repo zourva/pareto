@@ -7,15 +7,18 @@ import (
 	"strings"
 )
 
+// Options defines creation option of logger.
 type Options struct {
 	Verbosity   string //"v", "vv", or "vvv"
 	LogFileName string //stdout/stderr or filename
 }
 
+// Logger abstracts pareto logger.
 type Logger struct {
 	options *Options
 }
 
+// NewLogger creates a new logger with the given options.
 func NewLogger(opt *Options) *Logger {
 	options := opt
 	if options == nil {

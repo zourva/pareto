@@ -41,12 +41,12 @@ func TestSetupWithOpts(t *testing.T) {
 					WithWorkingDir(
 						env.NewWorkingDir(true,
 							[]*env.DirInfo{
-								{"bin", 0755},
-								{"etc", 0755},
-								{"lib", 0755},
-								{"log", 0755},
-								{"data", 0755},
-								{"installer", 0755},
+								{Name: "bin", Mode: 0755},
+								{Name: "etc", Mode: 0755},
+								{Name: "lib", Mode: 0755},
+								{Name: "log", Mode: 0755},
+								{Name: "data", Mode: 0755},
+								{Name: "installer", Mode: 0755},
 							}),
 					),
 				},

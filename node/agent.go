@@ -12,6 +12,7 @@ import (
 	"time"
 )
 
+// AgentSideCallback the callback of hooks.
 type AgentSideCallback func()
 
 // AgentSideHooks defines callbacks agent exposed
@@ -32,13 +33,13 @@ type AgentSideHooks struct {
 	OnStopped AgentSideCallback
 }
 
-// option func-closure pattern
+// AgentOption func-closure pattern
 type AgentOption func(agent *Agent)
 
 // agentOptions used by Agent
 type agentOptions struct {
 	endpoint  string //server endpoint
-	clientId  string //conn id assigned by Server
+	clientID  string //conn id assigned by Server
 	interval  uint32 //status report interval, in milliseconds
 	threshold uint32 //threshold to rebuild underlying connection
 	callbacks AgentSideHooks
@@ -47,31 +48,37 @@ type agentOptions struct {
 func defaultAgentOptions() agentOptions {
 	return agentOptions{
 		endpoint:  connectEndpoint,
-		clientId:  emptyString,
+		clientID:  emptyString,
 		interval:  defInterval,
 		threshold: 3,
 		callbacks: AgentSideHooks{},
 	}
 }
 
+// WithStatusReportInterval sets status report interval to the given value, in milliseconds.
 func WithStatusReportInterval(interval uint32) AgentOption {
 	return func(agent *Agent) {
 		agent.options.interval = box.ClampU32(minInterval, maxInterval, interval)
 	}
 }
 
-func WithClientId(id string) AgentOption {
+// WithClientID sets agent identity to id.
+func WithClientID(id string) AgentOption {
 	return func(agent *Agent) {
-		agent.options.clientId = id
+		agent.options.clientID = id
 	}
 }
 
+// WithThreshold provides a retry threshold,
+// which will result to rebuild underlying connection
+// if the number of internal failures exceeds it.
 func WithThreshold(t uint32) AgentOption {
 	return func(agent *Agent) {
 		agent.options.threshold = t
 	}
 }
 
+// WithCallbacks provides agent side hooks.
 func WithCallbacks(cbs AgentSideHooks) AgentOption {
 	return func(agent *Agent) {
 		agent.options.callbacks = cbs
@@ -88,13 +95,14 @@ type Agent struct {
 	// grpc underlying connection
 	clientConn *grpc.ClientConn
 
-	clientId string //conn id assigned by Server
+	clientID string //conn id assigned by Server
 
 	// statistics
 	msgCount int64
 	failures int64
 }
 
+// NewAgent creates an agent with the given endpoint address of the server and options.
 func NewAgent(endpoint string, opts ...AgentOption) *Agent {
 	if !box.ValidateEndpoint(endpoint) {
 		return nil
@@ -128,14 +136,17 @@ func NewAgent(endpoint string, opts ...AgentOption) *Agent {
 	return c
 }
 
+// TagRPC not used yet
 func (a *Agent) TagRPC(ctx context.Context, info *stats.RPCTagInfo) context.Context {
 	return ctx
 }
 
+// HandleRPC not used yet
 func (a *Agent) HandleRPC(ctx context.Context, rpcStats stats.RPCStats) {
 	//
 }
 
+// TagConn not used yet
 func (a *Agent) TagConn(ctx context.Context, info *stats.ConnTagInfo) context.Context {
 	return ctx
 }
@@ -157,6 +168,9 @@ func (a *Agent) HandleConn(ctx context.Context, connStats stats.ConnStats) {
 	}
 }
 
+// Start starts the agent by connecting, creating a service client,
+// establishing the client side protocol stack and moving to starting state.
+// Returns err if failed.
 func (a *Agent) Start() error {
 	client, err := grpc.Dial(
 		a.options.endpoint,
@@ -197,6 +211,7 @@ func (a *Agent) Start() error {
 	return nil
 }
 
+// Stop stops the agent.
 func (a *Agent) Stop() {
 	a.Shutdown()
 
@@ -260,7 +275,7 @@ func (a *Agent) onAuthenticating(args interface{}) {
 	}
 
 	// always load from config
-	a.clientId = a.configMgr.GetConf().Identity
+	a.clientID = a.configMgr.GetConf().Identity
 
 	if !a.protoMgr.doSignIn() {
 		log.Errorln("agent SignIn failed")
