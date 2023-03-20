@@ -103,6 +103,10 @@ func (dir *WorkingDir) GetPath() string {
 }
 
 // GetExecFilePath returns the directory part of the full path of exec.
+//  e.g.: when running file.exe, located at
+// 		/path/to/some/file.exe,
+//  this function will return
+// 		/path/to/some/
 func GetExecFilePath() string {
 	dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
 	if err != nil {

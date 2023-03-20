@@ -5,6 +5,7 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	log "github.com/sirupsen/logrus"
 	"github.com/zourva/pareto/box"
+	"github.com/zourva/pareto/res"
 	codes "google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -28,7 +29,7 @@ func NewAgentProto(upper *Agent, lower S1ServiceClient) *AgentProto {
 }
 
 func (a *AgentProto) getContextPiggybacked() context.Context {
-	md := metadata.New(map[string]string{clientKeyID: a.upper.clientID})
+	md := metadata.New(map[string]string{string(clientKeyID): a.upper.clientID})
 	return metadata.NewOutgoingContext(context.Background(), md)
 }
 
@@ -200,12 +201,14 @@ func NewServerProto(upper *Server) *ServerProto {
 func (s *ServerProto) getClientID(ctx context.Context) string {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if ok {
-		return md.Get(clientKeyID)[0]
+		return md.Get(string(clientKeyID))[0]
 	}
 
 	return emptyString
 }
 
+// validate check against metadata from proto buffer context
+// if the required client id exists and is valid.
 func (s *ServerProto) validate(ctx context.Context) (string, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
@@ -213,7 +216,7 @@ func (s *ServerProto) validate(ctx context.Context) (string, error) {
 		return emptyString, status.Errorf(codes.Code(ErrorCode_IntegrityError), "metadata is not provided")
 	}
 
-	id := md.Get(clientKeyID)[0]
+	id := md.Get(string(clientKeyID))[0]
 	if len(id) == 0 {
 		log.Errorf("metadata is invalid")
 		return emptyString, status.Errorf(codes.Code(ErrorCode_IntegrityError), "metadata is invalid")
@@ -321,6 +324,9 @@ func (s *ServerProto) SignIn(ctx context.Context, req *SignInReq) (*SignInRsp, e
 		s.upper.options.hooks.OnNodeJoin(node)
 	}
 
+	// notify subscribers
+	_ = s.upper.Notify(res.NodeJoin, node)
+
 	return &SignInRsp{}, nil
 }
 
@@ -335,6 +341,9 @@ func (s *ServerProto) SignOut(ctx context.Context, req *SignOutReq) (*SignOutRsp
 			node.Status = 0
 			node.UpdateTime = node.SignInTime
 			_ = s.upper.confMgr.SaveNode(node)
+
+			// notify subscribers
+			_ = s.upper.Notify(res.NodeLeave, node)
 		}
 	}
 

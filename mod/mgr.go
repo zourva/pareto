@@ -3,6 +3,7 @@ package mod
 import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zourva/pareto/ntop"
+	"github.com/zourva/pareto/res"
 	"sync"
 )
 
@@ -58,15 +59,6 @@ type ServiceManagerImpl struct {
 	done chan struct{}
 }
 
-const (
-	// topics
-	serviceStart = "/service-manager/service/start"
-	serviceStop  = "/service-manager/service/stop"
-	serviceDown  = "/service-manager/service/down"
-
-	// methods
-)
-
 // GetService returns the service associated with the
 // given name or nil if not found.
 func (s *ServiceManagerImpl) GetService(name string) Service {
@@ -111,7 +103,7 @@ func (s *ServiceManagerImpl) AttachService(name string, svc Service) {
 // Shutdown stops the manager and all services.
 func (s *ServiceManagerImpl) Shutdown() {
 	//notify all attached services
-	_ = s.Notify(serviceStop)
+	_ = s.Notify(res.ServiceStop)
 
 	//wait for all attached services to quit,
 	//making a graceful shutdown
@@ -145,12 +137,12 @@ func (s *ServiceManagerImpl) Startup() error {
 	})
 
 	//enable service join when exiting
-	if err := s.Listen(serviceDown, s.onServiceDown); err != nil {
+	if err := s.Listen(res.ServiceDown, s.onServiceDown); err != nil {
 		return err
 	}
 
 	//transfer control to services themselves
-	if err := s.Notify(serviceStart); err != nil {
+	if err := s.Notify(res.ServiceStart); err != nil {
 		return err
 	}
 
@@ -186,8 +178,7 @@ func (s *ServiceManagerImpl) onServiceDown(serviceName string) {
 
 // NewServiceManager creates a new service manager impl.
 func NewServiceManager() ServiceManager {
-	sm := &ServiceManagerImpl{
-	}
+	sm := &ServiceManagerImpl{}
 
 	sm.BaseService = NewBaseService("service manager", sm)
 	sm.Bus = ntop.NewBus()

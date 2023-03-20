@@ -15,12 +15,12 @@ func ValidateEndpoint(ep string) bool {
 	}
 
 	if strings.Count(ep, ":") > 1 {
-		log.Errorln("invalid endpoint address %s, should be the format of host:port")
+		log.Errorf("invalid endpoint address %s, should be the format of host:port", ep)
 		return false
 	}
 
 	if strings.Index(ep, ":") == 0 {
-		log.Errorln("invalid endpoint address %s, should be the format of host:port")
+		log.Errorf("invalid endpoint address %s, should be the format of host:port", ep)
 		return false
 	}
 

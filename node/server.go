@@ -5,6 +5,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zourva/pareto/box"
 	"github.com/zourva/pareto/env"
+	"github.com/zourva/pareto/mod"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
@@ -55,6 +56,7 @@ func defaultServerOptions() serverOptions {
 // Based on grpc and protocol buffer v3,
 // we define the s1 interface procedures.
 type Server struct {
+	*mod.BaseService
 	server  *grpc.Server
 	options serverOptions
 	confMgr ServerConfManager
@@ -80,14 +82,15 @@ func WithClusterMode(ep string, peers []string) ServerOption {
 }
 
 // NewServer creates a node server with the given endpoint and other options.
-func NewServer(endpoint string, opts ...ServerOption) *Server {
+func NewServer(endpoint string, mgr mod.ServiceManager, opts ...ServerOption) *Server {
 	if !box.ValidateEndpoint(endpoint) {
 		return nil
 	}
 
 	s := &Server{
-		options: defaultServerOptions(),
-		confMgr: NewServerConfManager(env.GetExecFilePath() + "/../etc/node.db"),
+		BaseService: mod.NewBaseService("s1-server", mgr),
+		options:     defaultServerOptions(),
+		confMgr:     NewServerConfManager(env.GetExecFilePath() + "/../etc/node.db"),
 	}
 
 	s.ssnMgr = newSessionManager(s)

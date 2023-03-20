@@ -6,6 +6,7 @@ import (
 	"github.com/zourva/pareto/box"
 	"github.com/zourva/pareto/env"
 	"github.com/zourva/pareto/meta"
+	"github.com/zourva/pareto/mod"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/stats"
@@ -88,6 +89,7 @@ func WithCallbacks(cbs AgentSideHooks) AgentOption {
 // Agent models node of the terminal side.
 type Agent struct {
 	*meta.StateMachine
+	*mod.BaseService
 	options   agentOptions
 	configMgr AgentConfManager
 	protoMgr  *AgentProto
@@ -103,13 +105,14 @@ type Agent struct {
 }
 
 // NewAgent creates an agent with the given endpoint address of the server and options.
-func NewAgent(endpoint string, opts ...AgentOption) *Agent {
+func NewAgent(endpoint string, mgr mod.ServiceManager, opts ...AgentOption) *Agent {
 	if !box.ValidateEndpoint(endpoint) {
 		return nil
 	}
 
 	c := &Agent{
 		StateMachine: meta.NewStateMachine(agentStateMachine, time.Second),
+		BaseService:  mod.NewBaseService(agentStateMachine, mgr),
 		options:      defaultAgentOptions(),
 		configMgr:    NewAgentConfManager(env.GetExecFilePath() + "/../etc/conf.db"),
 		protoMgr:     nil,

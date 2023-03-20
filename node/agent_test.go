@@ -1,6 +1,7 @@
 package node
 
 import (
+	"github.com/zourva/pareto/mod"
 	"testing"
 	"time"
 )
@@ -19,19 +20,18 @@ func TestNewAgent(t *testing.T) {
 			name: "default",
 			args: args{
 				endpoint: "127.0.0.1:21985",
-				opts: []AgentOption{
-				},
+				opts:     []AgentOption{},
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			server := NewServer(tt.args.endpoint)
+			server := NewServer(tt.args.endpoint, mod.NewServiceManager())
 			go server.Start()
 
 			time.Sleep(3 * time.Second)
 
-			got := NewAgent(tt.args.endpoint, tt.args.opts...)
+			got := NewAgent(tt.args.endpoint, mod.NewServiceManager(), tt.args.opts...)
 			got.Start()
 			time.Sleep(30 * time.Second)
 			got.Stop()

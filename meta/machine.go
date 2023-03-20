@@ -163,12 +163,12 @@ func (sm *StateMachine) SetStoppingState(state string) bool {
 // Startup starts running of the machine.
 func (sm *StateMachine) Startup() bool {
 	if len(sm.states) == 0 {
-		log.Errorln("state machine %s has no states registered, cannot startup")
+		log.Errorf("state machine %s has no states registered, cannot startup", sm.name)
 		return false
 	}
 
 	if sm.starting == "" {
-		log.Errorln("state machine %s has no starting state")
+		log.Errorf("state machine %s has no starting state", sm.name)
 		return false
 	}
 
@@ -225,8 +225,7 @@ func (sm *StateMachine) trigger() {
 }
 
 func (sm *StateMachine) loop() {
-	for
-	{
+	for {
 		select {
 		case <-sm.quit:
 			log.Infof("state machine %s loop quit", sm.name)
