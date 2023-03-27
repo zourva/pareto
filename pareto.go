@@ -46,6 +46,9 @@ func Setup() {
 	bot.logger = logger.NewLogger(&logger.Options{
 		Verbosity:   "v",
 		LogFileName: env.GetExecFilePath() + "/../log/out.log",
+		MaxSize:     50,
+		MaxAge:      7,
+		MaxBackups:  3,
 	})
 
 	bot.workingDir = env.NewWorkingDir(true,

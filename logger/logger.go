@@ -9,8 +9,27 @@ import (
 
 // Options defines creation option of logger.
 type Options struct {
-	Verbosity   string //"v", "vv", or "vvv"
-	LogFileName string //stdout/stderr or filename
+	//"v", "vv", or "vvv"
+	Verbosity string
+
+	//stdout/stderr or filename
+	LogFileName string
+
+	//Max size in MB of the log file before it gets rotated. It defaults to 100MB.
+	MaxSize int
+
+	//Max number of days to retain old log files based on the timestamp encoded in their filename.
+	//
+	//It defaults to 7 days.
+	MaxAge int
+
+	//Max number of old log files to retain.
+	//It defaults to 3 files.
+	//
+	//Any files older than MaxAge days are deleted, regardless of MaxBackups.
+	//
+	//If MaxBackups and MaxAge are both 0, no old log files will be deleted.
+	MaxBackups int
 }
 
 // Logger abstracts pareto logger.
@@ -61,9 +80,9 @@ func (l *Logger) setup() {
 	} else {
 		log.SetOutput(&lumberjack.Logger{
 			Filename:   l.options.LogFileName,
-			MaxSize:    50,
-			MaxAge:     7,
-			MaxBackups: 3,
+			MaxSize:    l.options.MaxSize,
+			MaxAge:     l.options.MaxAge,
+			MaxBackups: l.options.MaxBackups,
 			Compress:   true,
 		})
 	}
