@@ -1,4 +1,4 @@
-package ntop
+package broker
 
 import (
 	mqtt "github.com/mochi-co/mqtt/server"
@@ -26,11 +26,11 @@ func NewMQTTServer(name string, endpoint string) *MQTTServer {
 	tcp := listeners.NewTCP(name, endpoint)
 
 	// add the listener to the server with default options (nil)
-	err := server.AddListener(tcp, &listeners.Config{
+	if err := server.AddListener(tcp, &listeners.Config{
 		Auth: new(auth.Allow),
-	})
-	if err != nil {
-		log.Fatalln("mqtt broker add listener failed:", err)
+	}); err != nil {
+		log.Errorln("mqtt broker add listener failed:", err)
+		return nil
 	}
 
 	// Add OnConnect Event Hook
@@ -43,24 +43,35 @@ func NewMQTTServer(name string, endpoint string) *MQTTServer {
 		log.Infof("<<mqtt broker OnDisconnect client disconnected %s: %v\n", cl.ID, err)
 	}
 
+	log.Infoln("mqtt broker created")
+
 	return server
 }
 
-// Start starts the broker.
-func (s *MQTTServer) Start() {
+// Startup starts the broker.
+func (s *MQTTServer) Startup() error {
 	// start the broker.
 	// NOTE: Serve is non-blocking.
 	if err := s.Serve(); err != nil {
-		log.Fatalln("mqtt broker serve failed:", err)
+		log.Errorln("serve mqtt broker failed:", err)
+		return err
 	}
 
+	//wait for server ready
 	time.Sleep(time.Millisecond * 500)
 
 	log.Infoln("mqtt broker started")
+
+	return nil
 }
 
-// Stop stops the broker.
-func (s *MQTTServer) Stop() {
-	_ = s.Close()
+// Shutdown stops the broker.
+func (s *MQTTServer) Shutdown() error {
+	if err := s.Close(); err != nil {
+		log.Errorln("stop mqtt broker failed:", err)
+		return err
+	}
+
 	log.Infoln("mqtt broker stopped")
+	return nil
 }

@@ -1,4 +1,4 @@
-package ntop
+package broker
 
 import (
 	"context"
@@ -53,8 +53,8 @@ func BenchmarkPublish(b *testing.B) {
 func TestMain(m *testing.M) {
 	srv = NewMQTTServer("s1-broker", "127.0.0.1:1884")
 
-	srv.Start()
-	defer srv.Close()
+	_ = srv.Startup()
+	defer srv.Shutdown()
 
 	time.Sleep(time.Second)
 
@@ -64,46 +64,44 @@ func TestMain(m *testing.M) {
 }
 
 func TestMQTTClient_Connect(t *testing.T) {
-	t.Run("broker-publisher", func(t *testing.T) {
-		//client
-		client := NewMQTTClientV3("tcp", "127.0.0.1:1884")
-		assert.NotNil(t, client)
+	//client
+	client := NewMQTTClientV3("tcp", "127.0.0.1:1884")
+	assert.NotNil(t, client)
 
-		//client.SetDebugLogger(&logrus.Logger{
-		//	Out:       os.Stderr,
-		//	Formatter: new(logrus.TextFormatter),
-		//	Hooks:     make(logrus.LevelHooks),
-		//	Level:     logrus.TraceLevel,
-		//})
+	//client.SetDebugLogger(&logrus.Logger{
+	//	Out:       os.Stderr,
+	//	Formatter: new(logrus.TextFormatter),
+	//	Hooks:     make(logrus.LevelHooks),
+	//	Level:     logrus.TraceLevel,
+	//})
 
-		err := client.Connect(&paho.Connect{
-			ClientID:  "test-client",
-			KeepAlive: 30,
-			WillMessage: &paho.WillMessage{
-				Retain:  true,
-				QoS:     2,
-				Topic:   "/mqtt/vehicle/die",
-				Payload: nil,
-			},
-			CleanStart: true,
-		})
-		assert.Nil(t, err)
-
-		TopicVehicleStatus := "/mqtt/vehicle/status"
-		token := client.Subscribe(TopicVehicleStatus, 1, func(client mqtt.Client, message mqtt.Message) {
-			fmt.Println("recv msg:", message)
-		})
-
-		assert.True(t, token.WaitTimeout(time.Second*5))
-
-		//sa, err := client.Subscribe(context.Background(), &paho.Subscribe{
-		//	Subscriptions: map[string]paho.SubscribeOptions{
-		//		TopicVehicleStatus: {QoS: 0},
-		//	},
-		//})
-		//if err != nil {
-		//	fmt.Println("sa:", sa)
-		//}
-		//assert.Nil(t, err)
+	err := client.Connect(&paho.Connect{
+		ClientID:  "test-client",
+		KeepAlive: 30,
+		WillMessage: &paho.WillMessage{
+			Retain:  true,
+			QoS:     2,
+			Topic:   "/mqtt/vehicle/die",
+			Payload: nil,
+		},
+		CleanStart: true,
 	})
+	assert.Nil(t, err)
+
+	TopicVehicleStatus := "/mqtt/vehicle/status"
+	token := client.Subscribe(TopicVehicleStatus, 1, func(client mqtt.Client, message mqtt.Message) {
+		fmt.Println("recv msg:", message)
+	})
+
+	assert.True(t, token.WaitTimeout(time.Second*5))
+
+	//sa, err := client.Subscribe(context.Background(), &paho.Subscribe{
+	//	Subscriptions: map[string]paho.SubscribeOptions{
+	//		TopicVehicleStatus: {QoS: 0},
+	//	},
+	//})
+	//if err != nil {
+	//	fmt.Println("sa:", sa)
+	//}
+	//assert.Nil(t, err)
 }

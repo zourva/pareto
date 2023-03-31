@@ -2,9 +2,9 @@ package pareto
 
 import (
 	log "github.com/sirupsen/logrus"
-	"github.com/zourva/pareto/env"
+	"github.com/zourva/pareto/box/env"
+	"github.com/zourva/pareto/box/prof"
 	"github.com/zourva/pareto/logger"
-	"github.com/zourva/pareto/prof"
 )
 
 type paretoKit struct {

@@ -1,4 +1,4 @@
-package ntop
+package ipc
 
 import (
 	"fmt"
@@ -6,14 +6,6 @@ import (
 	"reflect"
 	"sync"
 )
-
-// Bus provides a message bus and expose API using pub/sub pattern.
-type Bus interface {
-	Publish(topic string, args ...interface{})
-	Subscribe(topic string, fn interface{}) error
-	SubscribeOnce(topic string, fn interface{}) error
-	Unsubscribe(topic string, fn interface{}) error
-}
 
 // EventBus - box for handlers and callbacks.
 // based on https://github.com/asaskevich/EventBus/blob/master/event_bus.go
@@ -26,15 +18,6 @@ type eventHandler struct {
 	callBack   reflect.Value
 	flagOnce   bool
 	sync.Mutex // lock for an event handler - useful for running async callbacks serially
-}
-
-// NewBus returns a new EventBus with empty handlers.
-func NewBus() Bus {
-	b := &EventBus{
-		handlers: make(map[string][]*eventHandler),
-		lock:     sync.RWMutex{},
-	}
-	return Bus(b)
 }
 
 func (bus *EventBus) check(fn interface{}) error {
@@ -162,4 +145,12 @@ func (bus *EventBus) setupPublish(callback *eventHandler, args ...interface{}) [
 	}
 
 	return passedArguments
+}
+
+func NewEventBus(conf *BusConf) Bus {
+	b := &EventBus{
+		handlers: make(map[string][]*eventHandler),
+		lock:     sync.RWMutex{},
+	}
+	return Bus(b)
 }

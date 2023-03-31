@@ -4,8 +4,8 @@ import (
 	"context"
 	log "github.com/sirupsen/logrus"
 	"github.com/zourva/pareto/box"
-	"github.com/zourva/pareto/env"
-	"github.com/zourva/pareto/mod"
+	"github.com/zourva/pareto/box/env"
+	"github.com/zourva/pareto/service"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
@@ -52,11 +52,11 @@ func defaultServerOptions() serverOptions {
 	}
 }
 
-// Server models node of the server side.
+// RegistryServer models node of the server side.
 // Based on grpc and protocol buffer v3,
 // we define the s1 interface procedures.
 type Server struct {
-	*mod.BaseService
+	*service.MetaService
 	server  *grpc.Server
 	options serverOptions
 	confMgr ServerConfManager
@@ -82,15 +82,19 @@ func WithClusterMode(ep string, peers []string) ServerOption {
 }
 
 // NewServer creates a node server with the given endpoint and other options.
-func NewServer(endpoint string, mgr mod.ServiceManager, opts ...ServerOption) *Server {
+func NewServer(endpoint string, opts ...ServerOption) *Server {
 	if !box.ValidateEndpoint(endpoint) {
 		return nil
 	}
 
 	s := &Server{
-		BaseService: mod.NewBaseService("s1-server", mgr),
-		options:     defaultServerOptions(),
-		confMgr:     NewServerConfManager(env.GetExecFilePath() + "/../etc/node.db"),
+		MetaService: service.NewMetaService(&service.Config{
+			Name:       "s1-server",
+			Messager:   nil,
+			Registerer: nil,
+		}),
+		options: defaultServerOptions(),
+		confMgr: NewServerConfManager(env.GetExecFilePath() + "/../etc/node.db"),
 	}
 
 	s.ssnMgr = newSessionManager(s)

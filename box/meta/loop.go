@@ -77,7 +77,7 @@ const (
 	stopped
 )
 
-//BreakableLoop provides a simple breakable loop impl.
+// BreakableLoop provides a simple breakable loop impl.
 type BreakableLoop struct {
 	name  string
 	state uint32

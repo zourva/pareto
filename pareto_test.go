@@ -1,7 +1,7 @@
 package pareto
 
 import (
-	"github.com/zourva/pareto/env"
+	"github.com/zourva/pareto/box/env"
 	"github.com/zourva/pareto/logger"
 	"testing"
 )

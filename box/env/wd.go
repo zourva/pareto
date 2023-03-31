@@ -33,24 +33,26 @@ type WorkingDir struct {
 //
 // Directories will be created with the given names and/or paths in dirs.
 // For example, to create a working dir layout of
-//    demo/
-//	    ├─bin/
-//      │  └─test.exe
-//      ├─data/
-//      ├─etc/
-//      │  └─conf.db
-//      ├─lib/
-//      └─log/
-//          └─error.log
 //
-//  call
-//  NewWorkingDir(true, []DirInfo{
-// 		{Name: "bin", Mode: 0755},
-//		{Name: "data", Mode: 0755},
-//		{Name: "etc", Mode: 0755},
-//		{Name: "lib", Mode: 0755},
-//		{Name: "log", Mode: 0755},
-//   }]
+//	   demo/
+//		    ├─bin/
+//	     │  └─test.exe
+//	     ├─data/
+//	     ├─etc/
+//	     │  └─conf.db
+//	     ├─lib/
+//	     └─log/
+//	         └─error.log
+//
+//	 call
+//	 NewWorkingDir(true, []DirInfo{
+//			{Name: "bin", Mode: 0755},
+//			{Name: "data", Mode: 0755},
+//			{Name: "etc", Mode: 0755},
+//			{Name: "lib", Mode: 0755},
+//			{Name: "log", Mode: 0755},
+//	  }]
+//
 // NOTE: This method is idempotent.
 func NewWorkingDir(parent bool, dirs []*DirInfo) *WorkingDir {
 	wd := &WorkingDir{
@@ -103,10 +105,11 @@ func (dir *WorkingDir) GetPath() string {
 }
 
 // GetExecFilePath returns the directory part of the full path of exec.
-//  e.g.: when running file.exe, located at
-// 		/path/to/some/file.exe,
-//  this function will return
-// 		/path/to/some/
+//
+//	 e.g.: when running file.exe, located at
+//			/path/to/some/file.exe,
+//	 this function will return
+//			/path/to/some/
 func GetExecFilePath() string {
 	dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
 	if err != nil {

@@ -352,16 +352,19 @@ func (s *ServerProto) SignOut(ctx context.Context, req *SignOutReq) (*SignOutRsp
 
 // Report provides a report status request rpc method
 func (s *ServerProto) Report(ctx context.Context, req *ReportStatusReq) (*empty.Empty, error) {
-	panic("implement me")
+	//panic("implement me")
+	return nil, nil
 }
 
 // Config provides a configuration request rpc method
 func (s *ServerProto) Config(ctx context.Context, req *GetConfigReq) (*GetConfigRsp, error) {
-	panic("implement me")
+	//panic("implement me")
+	return nil, nil
 }
 
 // StreamTransfer runs in a poll pattern to recv from stream
-//  and handles agent-initiated bidirectional service.
+//
+//	and handles agent-initiated bidirectional service.
 func (s *ServerProto) StreamTransfer(server S1Service_StreamTransferServer) error {
 	for {
 		msg, err := server.Recv()

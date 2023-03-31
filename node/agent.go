@@ -4,9 +4,10 @@ import (
 	"context"
 	log "github.com/sirupsen/logrus"
 	"github.com/zourva/pareto/box"
-	"github.com/zourva/pareto/env"
-	"github.com/zourva/pareto/meta"
-	"github.com/zourva/pareto/mod"
+	"github.com/zourva/pareto/box/env"
+	"github.com/zourva/pareto/box/meta"
+	"github.com/zourva/pareto/ipc"
+	"github.com/zourva/pareto/service"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/stats"
@@ -40,7 +41,7 @@ type AgentOption func(agent *Agent)
 // agentOptions used by Agent
 type agentOptions struct {
 	endpoint  string //server endpoint
-	clientID  string //conn id assigned by Server
+	clientID  string //conn id assigned by RegistryServer
 	interval  uint32 //status report interval, in milliseconds
 	threshold uint32 //threshold to rebuild underlying connection
 	callbacks AgentSideHooks
@@ -89,7 +90,7 @@ func WithCallbacks(cbs AgentSideHooks) AgentOption {
 // Agent models node of the terminal side.
 type Agent struct {
 	*meta.StateMachine
-	*mod.BaseService
+	*service.MetaService
 	options   agentOptions
 	configMgr AgentConfManager
 	protoMgr  *AgentProto
@@ -97,7 +98,7 @@ type Agent struct {
 	// grpc underlying connection
 	clientConn *grpc.ClientConn
 
-	clientID string //conn id assigned by Server
+	clientID string //conn id assigned by RegistryServer
 
 	// statistics
 	msgCount int64
@@ -105,17 +106,24 @@ type Agent struct {
 }
 
 // NewAgent creates an agent with the given endpoint address of the server and options.
-func NewAgent(endpoint string, mgr mod.ServiceManager, opts ...AgentOption) *Agent {
+func NewAgent(endpoint string, opts ...AgentOption) *Agent {
 	if !box.ValidateEndpoint(endpoint) {
 		return nil
 	}
 
 	c := &Agent{
 		StateMachine: meta.NewStateMachine(agentStateMachine, time.Second),
-		BaseService:  mod.NewBaseService(agentStateMachine, mgr),
-		options:      defaultAgentOptions(),
-		configMgr:    NewAgentConfManager(env.GetExecFilePath() + "/../etc/conf.db"),
-		protoMgr:     nil,
+		MetaService: service.NewMetaService(&service.Config{
+			Name: agentStateMachine,
+			Messager: ipc.NewMessager(&ipc.MessagerConf{
+				BusConf: &ipc.BusConf{Name: "agent-bus", Type: ipc.InterProcBus, Broker: endpoint},
+				RpcConf: &ipc.RPCConf{Name: "agent-rpc", Type: ipc.InterProcRpc, Broker: endpoint},
+			}),
+			Registerer: nil,
+		}),
+		options:   defaultAgentOptions(),
+		configMgr: NewAgentConfManager(env.GetExecFilePath() + "/../etc/conf.db"),
+		protoMgr:  nil,
 	}
 
 	for _, opt := range opts {
@@ -223,7 +231,7 @@ func (a *Agent) Stop() {
 	log.Infof("node agent stopped")
 }
 
-//onStopping signs out from server and quit agent.
+// onStopping signs out from server and quit agent.
 func (a *Agent) onStopping(args interface{}) {
 	a.protoMgr.doSignOut()
 	log.Infoln("agent stopping done")

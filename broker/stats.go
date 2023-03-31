@@ -1,4 +1,4 @@
-package ntop
+package broker
 
 import (
 	log "github.com/sirupsen/logrus"
@@ -100,4 +100,3 @@ func (s *statistician) sample(reset bool) *kpis {
 
 	return &s.kpis
 }
-

@@ -17,13 +17,13 @@ type RaftRole string
 
 const (
 	// RaftRoleLeader the raft leader role.
-	RaftRoleLeader    RaftRole = "leader"
+	RaftRoleLeader RaftRole = "leader"
 
 	// RaftRoleCandidate the raft candidate role.
 	RaftRoleCandidate RaftRole = "candidate"
 
 	// RaftRoleFollower the raft follower role.
-	RaftRoleFollower  RaftRole = "follower"
+	RaftRoleFollower RaftRole = "follower"
 )
 
 // VoteReq defines request of raft AppendEntries Method,
@@ -59,9 +59,10 @@ type AppendRsp struct {
 }
 
 // State includes:
-//  persistent state on all servers,
-//  volatile state on all servers, and
-//  volatile state on leaders (which will be reinitialized after election).
+//
+//	persistent state on all servers,
+//	volatile state on all servers, and
+//	volatile state on leaders (which will be reinitialized after election).
 type State struct {
 	//latest term server has seen (initialized to 0
 	//on first boot, increases monotonically)
@@ -151,10 +152,12 @@ func newConsensus(node *ClusterNode) *consensus {
 
 func (c *consensus) RequestVote(req *VoteReq, rsp *VoteRsp) error {
 	panic("implement me")
+	return nil
 }
 
 func (c *consensus) AppendEntries(req *AppendReq, rsp *AppendRsp) error {
 	panic("implement me")
+	return nil
 }
 
 // IncrementTerm increases the current term.
@@ -191,7 +194,7 @@ func (c *consensus) BroadcastVote() {
 	}
 }
 
-// WinTheElection checks if this node(as a candidate) wins the election. 
+// WinTheElection checks if this node(as a candidate) wins the election.
 func (c *consensus) WinTheElection() bool {
 	//TODO
 	return true
@@ -265,12 +268,14 @@ func (c *consensus) run() {
 	}
 }
 
-//To begin an election, a follower increments its current
-//term and transitions to candidate state.
+// To begin an election, a follower increments its current
+// term and transitions to candidate state.
+//
 //	It then votes for itself and issues RequestVote RPCs in parallel to each of
 //	the other servers in the cluster.
 //
-//A candidate continues in this state until one of three things happens:
+// A candidate continues in this state until one of three things happens:
+//
 //	(a) it wins the election,
 //	(b) another server establishes itself as leader, or
 //	(c) a period of time goes by with no winner.

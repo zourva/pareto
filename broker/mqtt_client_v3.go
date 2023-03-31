@@ -1,4 +1,4 @@
-package ntop
+package broker
 
 import (
 	"errors"
@@ -17,7 +17,7 @@ type MQTTClientV3 struct {
 	stat     *statistician //internal statistician
 }
 
-//NewMQTTClientV3 creates a client and establish a connection to the given broker.
+// NewMQTTClientV3 creates a client and establish a connection to the given broker.
 func NewMQTTClientV3(network string, endpoint string) *MQTTClientV3 {
 	c := &MQTTClientV3{
 		network:  network,
