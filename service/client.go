@@ -1,6 +1,7 @@
 package service
 
 import (
+	log "github.com/sirupsen/logrus"
 	"github.com/vmihailenco/msgpack/v5"
 	"github.com/zourva/pareto/ipc"
 )
@@ -14,7 +15,7 @@ type Registerer struct {
 	messager *ipc.Messager
 }
 
-// Registerer registers the service to the registry server.
+// Register registers the service to the registry server.
 // Returns false when any error occurs, and true otherwise.
 func (r *Registerer) Register(s Service) bool {
 	_, err := msgpack.Marshal(
@@ -38,5 +39,7 @@ func (r *Registerer) Deregister(s Service) {
 // NewRegisterer creates a new registerer with the
 // given messager as its communication channel.
 func NewRegisterer(m *ipc.Messager) *Registerer {
-	return &Registerer{messager: m}
+	r := &Registerer{messager: m}
+	log.Infoln("a new registerer is created")
+	return r
 }

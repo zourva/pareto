@@ -3,6 +3,7 @@ package ipc
 import (
 	"github.com/nats-io/nats.go"
 	log "github.com/sirupsen/logrus"
+	"reflect"
 	"sync"
 )
 
@@ -95,7 +96,9 @@ func (n *NatsBus) Unsubscribe(topic string, fn interface{}) error {
 	l := len(n.subs[topic])
 
 	for i, desc := range s {
-		if desc.fn == fn {
+		ref1 := reflect.ValueOf(desc.fn)
+		ref2 := reflect.ValueOf(fn)
+		if ref1.Pointer() == ref2.Pointer() {
 			// copy & move & overwrite & nullify
 			copy(n.subs[topic][i:], n.subs[topic][i+1:])
 			n.subs[topic][l-1] = nil // or the zero value of T

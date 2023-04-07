@@ -22,9 +22,11 @@ type BusConf struct {
 
 // Bus provides a message bus and expose API using pub/sub pattern.
 type Bus interface {
+	// Publish publishes data on the given topic.
 	//  This method is goroutine-safe.
 	Publish(topic string, args ...interface{})
 
+	// Subscribe subscribes data on the given topic by registering a callback.
 	//  This method is goroutine-safe.
 	Subscribe(topic string, fn interface{}) error
 
@@ -38,7 +40,8 @@ type Bus interface {
 	Unsubscribe(topic string, fn interface{}) error
 }
 
-// NewBus returns a new Bus connected to the given broker.
+// NewBus returns a new Bus endpoint and connects itself to the given broker.
+// If conf is nil, bus endpoint will not be created.
 func NewBus(conf *BusConf) Bus {
 	if conf == nil {
 		conf = &BusConf{

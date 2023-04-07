@@ -16,23 +16,49 @@ type MessagerConf struct {
 	RpcConf *RPCConf
 }
 
+// NewMessager creates a messager using the given config.
+//
+//	NOTE:
+//	Bus endpoint will be created iff BusConf is not nil.
+//	RPC channel will be created iff RPCConf is not nil.
+//
+// Returns nil when both conf are nil.
 func NewMessager(conf *MessagerConf) *Messager {
-	bus := NewBus(conf.BusConf)
-	if bus == nil {
-		log.Errorln("NewBus failed")
+	if conf == nil || (conf.BusConf == nil && conf.RpcConf == nil) {
+		log.Errorln("conf is nil, cannot create a messager")
 		return nil
 	}
 
-	rpc := NewRPC(conf.RpcConf)
-	if rpc == nil {
-		log.Errorln("NewRPC failed")
-		return nil
+	var bus Bus
+	if conf.BusConf != nil {
+		if bus = NewBus(conf.BusConf); bus == nil {
+			log.Errorln("NewBus failed")
+			return nil
+		}
+
+		log.Infof("bus messager endpoint %s created", conf.BusConf.Name)
+	} else {
+		log.Infoln("bus messager endpoint creation skipped")
+	}
+
+	var rpc RPC
+	if conf.RpcConf != nil {
+		if rpc = NewRPC(conf.RpcConf); rpc == nil {
+			log.Errorln("NewRPC failed")
+			return nil
+		}
+
+		log.Infof("rpc messager channel %s created", conf.RpcConf.Name)
+	} else {
+		log.Infoln("rpc messager channel creation skipped")
 	}
 
 	m := &Messager{
-		Bus: NewBus(conf.BusConf),
-		RPC: NewRPC(conf.RpcConf),
+		Bus: bus,
+		RPC: rpc,
 	}
+
+	log.Infoln("a messager is created")
 
 	return m
 }
