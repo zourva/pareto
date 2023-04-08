@@ -20,24 +20,26 @@ type BusConf struct {
 	Broker string
 }
 
+type Handler func([]byte)
+
 // Bus provides a message bus and expose API using pub/sub pattern.
 type Bus interface {
 	// Publish publishes data on the given topic.
 	//  This method is goroutine-safe.
-	Publish(topic string, args ...interface{})
+	Publish(topic string, data []byte) error
 
 	// Subscribe subscribes data on the given topic by registering a callback.
 	//  This method is goroutine-safe.
-	Subscribe(topic string, fn interface{}) error
+	Subscribe(topic string, fn Handler) error
 
 	// SubscribeOnce calls Unsubscribe
 	//  This method is goroutine-safe.
-	SubscribeOnce(topic string, fn interface{}) error
+	SubscribeOnce(topic string, fn Handler) error
 
 	// Unsubscribe removes handler registered for a topic.
 	// Returns error if there are no handlers subscribed to the topic.
 	//  This method is goroutine-safe.
-	Unsubscribe(topic string, fn interface{}) error
+	Unsubscribe(topic string, fn Handler) error
 }
 
 // NewBus returns a new Bus endpoint and connects itself to the given broker.

@@ -30,7 +30,7 @@ func (bus *EventBus) check(fn interface{}) error {
 
 // Subscribe subscribes to a topic.
 // Returns error if `fn` is not a function.
-func (bus *EventBus) Subscribe(topic string, fn interface{}) error {
+func (bus *EventBus) Subscribe(topic string, fn Handler) error {
 	if err := bus.check(fn); err != nil {
 		return err
 	}
@@ -42,7 +42,7 @@ func (bus *EventBus) Subscribe(topic string, fn interface{}) error {
 
 // SubscribeOnce subscribes to a topic once. Handler will be removed after executing.
 // Returns error if `fn` is not a function.
-func (bus *EventBus) SubscribeOnce(topic string, fn interface{}) error {
+func (bus *EventBus) SubscribeOnce(topic string, fn Handler) error {
 	if err := bus.check(fn); err != nil {
 		return err
 	}
@@ -54,12 +54,12 @@ func (bus *EventBus) SubscribeOnce(topic string, fn interface{}) error {
 
 // Unsubscribe removes callback defined for a topic.
 // Returns error if there are no callbacks subscribed to the topic.
-func (bus *EventBus) Unsubscribe(topic string, handler interface{}) error {
+func (bus *EventBus) Unsubscribe(topic string, fn Handler) error {
 	bus.lock.Lock()
 	defer bus.lock.Unlock()
 
 	if _, ok := bus.handlers[topic]; ok && len(bus.handlers[topic]) > 0 {
-		bus.removeHandler(topic, bus.findHandlerIdx(topic, reflect.ValueOf(handler)))
+		bus.removeHandler(topic, bus.findHandlerIdx(topic, reflect.ValueOf(fn)))
 		return nil
 	}
 
@@ -67,7 +67,7 @@ func (bus *EventBus) Unsubscribe(topic string, handler interface{}) error {
 }
 
 // Publish executes callback defined for a topic. Any additional argument will be transferred to the callback.
-func (bus *EventBus) Publish(topic string, args ...interface{}) {
+func (bus *EventBus) Publish(topic string, data []byte) error {
 	bus.lock.Lock() // will unlock if handler is not found or always after makeArgs
 	defer bus.lock.Unlock()
 
@@ -86,9 +86,11 @@ func (bus *EventBus) Publish(topic string, args ...interface{}) {
 
 			log.Tracef("publish to %s with %v", topic, handler.callBack)
 			//TODO: try goroutine pooling
-			go bus.doPublish(handler, args...)
+			go bus.doPublish(handler, data)
 		}
 	}
+
+	return nil
 }
 
 // doSubscribe handles the subscription logic and is utilized by the public Subscribe functions

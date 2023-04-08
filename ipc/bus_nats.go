@@ -44,35 +44,37 @@ func NewNatsBus(conf *BusConf) Bus {
 	return bus
 }
 
-func (n *NatsBus) Publish(topic string, args ...interface{}) {
-	// TODO implements this
-	_ = n.Conn.Publish(topic, nil)
+func (n *NatsBus) Publish(topic string, data []byte) error {
+	return n.Conn.Publish(topic, data)
 }
 
-func (n *NatsBus) Subscribe(topic string, fn interface{}) error {
+func (n *NatsBus) Subscribe(topic string, fn Handler) error {
 	s, err := n.Conn.Subscribe(topic, func(msg *nats.Msg) {
-		log.Errorln("recv subscribed:", msg.Data)
+		//log.Debugln("recv subscribed:", msg.Data)
+		fn(msg.Data)
 	})
 
 	if err != nil {
 		return err
-	} else {
-		n.lock.Lock()
-		defer n.lock.Unlock()
-
-		//log.Tracef("subscribe to %s with %v", topic, fn)
-		n.subs[topic] = append(n.subs[topic], &descriptor{s, fn})
 	}
+
+	n.lock.Lock()
+	defer n.lock.Unlock()
+
+	//log.Tracef("subscribe to %s with %v", topic, fn)
+	n.subs[topic] = append(n.subs[topic], &descriptor{s, fn})
 
 	return nil
 }
 
-func (n *NatsBus) SubscribeOnce(topic string, fn interface{}) error {
+func (n *NatsBus) SubscribeOnce(topic string, fn Handler) error {
 	// no need to save to n.subs since it will unsubscribe immediately
 	var err error
 	var s *nats.Subscription
 	if s, err = n.Conn.Subscribe(topic, func(msg *nats.Msg) {
-		log.Errorln("recv subscribed:", msg.Data)
+		//log.Debugln("recv subscribed:", msg.Data)
+		fn(msg.Data)
+
 		_ = s.Unsubscribe()
 	}); err != nil {
 		return err
@@ -84,7 +86,7 @@ func (n *NatsBus) SubscribeOnce(topic string, fn interface{}) error {
 // Unsubscribe
 //
 //	This method is goroutine-safe.
-func (n *NatsBus) Unsubscribe(topic string, fn interface{}) error {
+func (n *NatsBus) Unsubscribe(topic string, fn Handler) error {
 	n.lock.Lock()
 	defer n.lock.Unlock()
 
