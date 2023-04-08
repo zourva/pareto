@@ -194,6 +194,9 @@ func (sm *StateMachine) Shutdown() {
 
 	close(sm.quit)
 
+	//wait for inner loop to quit
+	time.Sleep(time.Millisecond * 100)
+
 	sm.ticker.Stop()
 
 	log.Infof("state machine %s exited", sm.name)

@@ -23,23 +23,32 @@ type LoopRunHook struct {
 
 // LoopConfig loop configuration, all options have default values except CbWork
 type LoopConfig struct {
-	//clock pulse interval in milliseconds, 0 means using the default(1000 ms)
+	//Tick defines clock pulse base precision/resolution of a time-wheel loop in milliseconds.
+	//Zero value means the default(1000 ms).
 	Tick uint32
 
-	//#ticks of work check interval,  set to 0 as using the default(1)
+	//Work defines the tick count of work check interval.
+	//Zero value means the default(1 tick).
 	Work uint32
 
-	//#ticks of idle check interval, set to 0 to use the default(1)
+	//Idle defines the tick count of idle check interval.
+	//Zero value means the default(1 tick).
 	Idle uint32
 
 	//#ticks after which the loop will be terminated,
 	// set to 0 as disabling auto termination
 	//Quit uint32
 
-	//if false, fn will be executed in another go routine, false by default
+	//Sync, if set to false, hook functions provided by Run
+	//will be executed in another go routine, i.e. asynchronously.
+	//
+	//It's false by default.
 	Sync bool
 
-	//if true, quit the underlying loop when error returned by user hooks, false by default
+	//BailOnError, if set to true, tells the loop manager to break the underlying loop
+	//when error is returned by user hooks, otherwise, the loop continues to next iteration.
+	//
+	//It's false by default.
 	BailOnError bool
 }
 
@@ -60,7 +69,7 @@ func NewLoop(name string, conf LoopConfig) Loop {
 		ticks = time.Millisecond * time.Duration(conf.Tick)
 	}
 
-	return &BreakableLoop{
+	return &TimeWheelLoop{
 		name:  name,
 		state: initialized,
 		conf:  conf,
@@ -77,8 +86,8 @@ const (
 	stopped
 )
 
-// BreakableLoop provides a simple breakable loop impl.
-type BreakableLoop struct {
+// TimeWheelLoop provides a simple breakable loop impl.
+type TimeWheelLoop struct {
 	name  string
 	state uint32
 	conf  LoopConfig
@@ -88,14 +97,14 @@ type BreakableLoop struct {
 }
 
 // Name returns name of the loop.
-func (l *BreakableLoop) Name() string {
+func (l *TimeWheelLoop) Name() string {
 	return l.name
 }
 
 // Conf configure the loop with the given configuration.
 // This methods should be called before Run and not be called
 // after the loop is running.
-func (l *BreakableLoop) Conf(conf LoopConfig) bool {
+func (l *TimeWheelLoop) Conf(conf LoopConfig) bool {
 	l.conf = conf
 
 	if conf.Tick != 0 {
@@ -112,7 +121,7 @@ func (l *BreakableLoop) Conf(conf LoopConfig) bool {
 // NOTE: Run is not re-entrant and must not be called within a callback.
 // When the loop is configured to run in async mode,
 // hook functions must be guaranteed to be goroutine-safe.
-func (l *BreakableLoop) Run(hooks LoopRunHook) {
+func (l *TimeWheelLoop) Run(hooks LoopRunHook) {
 	if hooks.Working == nil {
 		log.Errorf("loop %s has not provide main callback func yet", l.name)
 		return
@@ -130,12 +139,12 @@ func (l *BreakableLoop) Run(hooks LoopRunHook) {
 }
 
 // Alive returns true if loop is running.
-func (l *BreakableLoop) Alive() bool {
+func (l *TimeWheelLoop) Alive() bool {
 	return l.state == running
 }
 
 // Stop stops the internal timer, close channels and clear all states.
-func (l *BreakableLoop) Stop() {
+func (l *TimeWheelLoop) Stop() {
 	close(l.quit)
 	l.tick.Stop()
 
@@ -144,7 +153,7 @@ func (l *BreakableLoop) Stop() {
 	l.state = stopped
 }
 
-func (l *BreakableLoop) runHook(pos string, hook func() error) bool {
+func (l *TimeWheelLoop) runHook(pos string, hook func() error) bool {
 	if err := hook(); err != nil && l.conf.BailOnError {
 		log.Errorf("%s loop %s hook call failed: %v", l.name, pos, err)
 		return false
@@ -155,7 +164,7 @@ func (l *BreakableLoop) runHook(pos string, hook func() error) bool {
 	return true
 }
 
-func (l *BreakableLoop) loop(hooks *LoopRunHook) {
+func (l *TimeWheelLoop) loop(hooks *LoopRunHook) {
 	var workCount uint32 = 0
 	var idleCount uint32 = 0
 
