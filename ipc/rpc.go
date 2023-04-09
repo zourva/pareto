@@ -1,29 +1,10 @@
 package ipc
 
 import (
-	"fmt"
 	log "github.com/sirupsen/logrus"
 	"reflect"
 	"time"
 )
-
-// RPCMethod defines the identity of an rpc method.
-type RPCMethod struct {
-	Service string
-	Object  string
-	Method  string
-}
-
-// SerializedName returns the dotted name of the method, i.e.:
-//
-//	service.object.method
-//
-// e.g.:
-//
-//	webserver.cookie.get
-func (r *RPCMethod) SerializedName() string {
-	return fmt.Sprintf("%s.%s.%s", r.Service, r.Object, r.Method)
-}
 
 // CalleeHandler abstracts the RPC server side universal handler.
 type CalleeHandler func(data []byte) ([]byte, error)

@@ -1,13 +1,14 @@
 package service
 
 import (
+	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/zourva/pareto/ipc"
-	"reflect"
+	"time"
 )
 
 // Service abstracts the service clients.
-// A service is comprised of a messager, a registerer and hooks.
+// A service comprises a messager, a registerer and hooks.
 // A service has the lifecycle of:
 //
 //	server side				client side
@@ -35,13 +36,13 @@ type Service interface {
 	//BeforeStarting is called after the service instance is created.
 	BeforeStarting()
 
-	//AfterStarting is called when the service finishes initialization.
+	//AfterStarting is called when the service finish initialization.
 	AfterStarting()
 
 	//BeforeStopping is called when the service is about to stop.
 	BeforeStopping()
 
-	//AfterStopping is called when the service finishes shutdown.
+	//AfterStopping is called when the service finish shutdown.
 	AfterStopping()
 
 	//BeforeDestroyed is called before the service instance is destroyed.
@@ -58,6 +59,24 @@ type Config struct {
 
 	//Registerer as a delegator to interact with service server, mandatory.
 	Registerer *Registerer
+}
+
+// Endpoint defines the identity of a bus endpoint or rpc channel.
+type Endpoint struct {
+	Service string
+	Object  string
+	Method  string
+}
+
+// SerializedName returns the path-like name of the method, i.e.:
+//
+//	service.object.method
+//
+// e.g.:
+//
+//	webserver/cookie/get
+func (r *Endpoint) SerializedName() string {
+	return fmt.Sprintf("%s/%s/%s", r.Service, r.Object, r.Method)
 }
 
 // MetaService implements the Service interface and
@@ -100,34 +119,27 @@ func (s *MetaService) BeforeDestroyed() {
 
 // Listen binds a handler to a subscribed topic.
 // Old handler will be replaced if already bounded.
-func (s *MetaService) Listen(topic string, fn interface{}) error {
+func (s *MetaService) Listen(topic string, fn ipc.Handler) error {
 	log.Infof("%s subscribe to %s", s.Name(), topic)
 	return s.Messager().Subscribe(topic, fn)
 }
 
 // Notify broadcasts a notice message to all subscribers and assumes no replies.
-func (s *MetaService) Notify(topic string, args ...interface{}) error {
+func (s *MetaService) Notify(topic string, data []byte) error {
 	log.Debugf("%s publish to %s", s.Name(), topic)
-	s.Messager().Publish(topic, args...)
-
-	return nil
+	return s.Messager().Publish(topic, data)
 }
 
-// ExposeMethod expose a server-side method to the external world.
-func (s *MetaService) ExposeMethod(id ipc.RPCMethod, fn interface{}) {
-	name := id.SerializedName()
-
+// ExposeMethod registers a server-side method, identified by name, with the given handler.
+func (s *MetaService) ExposeMethod(name string, fn ipc.CalleeHandler) error {
 	log.Debugf("%s expose method %s", s.Name(), name)
-
-	s.Messager().Expose(name, fn)
+	return s.Messager().ExposeV2(name, fn)
 }
 
 // CallMethod calls a remote method identified by id.
-func (s *MetaService) CallMethod(id ipc.RPCMethod, args ...interface{}) (reflect.Value, error) {
-	name := id.SerializedName()
+func (s *MetaService) CallMethod(name string, data []byte, to time.Duration) ([]byte, error) {
 	log.Debugf("%s invoke rpc %s", s.Name(), name)
-
-	return s.Messager().Call(name, args...)
+	return s.Messager().CallV2(name, data, to)
 }
 
 // NewMetaService creates a new meta service with the given conf.

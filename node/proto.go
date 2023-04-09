@@ -4,9 +4,10 @@ import (
 	"context"
 	"github.com/golang/protobuf/ptypes/empty"
 	log "github.com/sirupsen/logrus"
+	"github.com/vmihailenco/msgpack/v5"
 	"github.com/zourva/pareto/box"
 	"github.com/zourva/pareto/res"
-	codes "google.golang.org/grpc/codes"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"io"
@@ -325,7 +326,8 @@ func (s *ServerProto) SignIn(ctx context.Context, req *SignInReq) (*SignInRsp, e
 	}
 
 	// notify subscribers
-	_ = s.upper.Notify(res.NodeJoin, node)
+	data, _ := msgpack.Marshal(node)
+	_ = s.upper.Notify(res.NodeJoin, data)
 
 	return &SignInRsp{}, nil
 }
@@ -343,7 +345,8 @@ func (s *ServerProto) SignOut(ctx context.Context, req *SignOutReq) (*SignOutRsp
 			_ = s.upper.confMgr.SaveNode(node)
 
 			// notify subscribers
-			_ = s.upper.Notify(res.NodeLeave, node)
+			data, _ := msgpack.Marshal(node)
+			_ = s.upper.Notify(res.NodeLeave, data)
 		}
 	}
 
@@ -352,13 +355,13 @@ func (s *ServerProto) SignOut(ctx context.Context, req *SignOutReq) (*SignOutRsp
 
 // Report provides a report status request rpc method
 func (s *ServerProto) Report(ctx context.Context, req *ReportStatusReq) (*empty.Empty, error) {
-	//panic("implement me")
+	panic("implement me")
 	return nil, nil
 }
 
 // Config provides a configuration request rpc method
 func (s *ServerProto) Config(ctx context.Context, req *GetConfigReq) (*GetConfigRsp, error) {
-	//panic("implement me")
+	panic("implement me")
 	return nil, nil
 }
 
