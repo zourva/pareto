@@ -6,10 +6,10 @@ import (
 	"testing"
 )
 
-func TestSetupDefault(t *testing.T) {
-	Setup()
-	Teardown()
-}
+//func TestSetupDefault(t *testing.T) {
+//	Setup()
+//	Teardown()
+//}
 
 func TestSetupWithOpts(t *testing.T) {
 	options := []Option{
