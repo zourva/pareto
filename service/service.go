@@ -144,6 +144,7 @@ func (s *MetaService) CallMethod(name string, data []byte, to time.Duration) ([]
 
 // NewMetaService creates a new meta service with the given conf.
 // The newly created service is registered automatically to the server.
+// Returns nil when conf is invalid or when the registration failed.
 func NewMetaService(conf *Config) *MetaService {
 	if conf == nil {
 		log.Errorln("service config must not be nil")

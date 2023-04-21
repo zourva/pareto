@@ -40,6 +40,6 @@ func (r *Registerer) Deregister(s Service) {
 // given messager as its communication channel.
 func NewRegisterer(m *ipc.Messager) *Registerer {
 	r := &Registerer{messager: m}
-	log.Infoln("a new registerer is created")
+	log.Infoln("a registerer is created")
 	return r
 }

@@ -54,10 +54,25 @@ type LoopConfig struct {
 
 // Loop interface exposed
 type Loop interface {
+	// Name returns name of the loop.
 	Name() string
+
+	// Conf configure the loop with the given configuration.
+	// This methods should be called before Run and not be called
+	// after the loop is running.
 	Conf(conf LoopConfig) bool
+
+	// Run starts the loop with the provided hooks.
+	//
+	// NOTE: Run is not re-entrant and must not be called within a callback.
+	// When the loop is configured to run in async mode,
+	// hook functions must be guaranteed to be goroutine-safe.
 	Run(hooks LoopRunHook)
+
+	// Alive returns true if loop is running.
 	Alive() bool
+
+	// Stop stops the internal timer, close channels and clear all states.
 	Stop()
 }
 
