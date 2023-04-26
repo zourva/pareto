@@ -24,7 +24,7 @@ type NatsRPC struct {
 func (r *NatsRPC) Expose(name string, fn interface{}) {
 }
 
-// Expose exposes a service by associating a handler.
+// ExposeV2 exposes a service by associating a handler.
 func (r *NatsRPC) ExposeV2(name string, handler CalleeHandler) error {
 	if handler != nil {
 		return errors.New("handler must not be nil")
@@ -55,7 +55,7 @@ func (r *NatsRPC) Call(name string, args ...interface{}) (reflect.Value, error) 
 	return reflect.Value{}, nil
 }
 
-// Call calls a remote service identified by its name with the given args and expects
+// CallV2 calls a remote service identified by its name with the given args and expects
 // response data or error, in the time limited by timeout.
 func (r *NatsRPC) CallV2(name string, data []byte, timeout time.Duration) ([]byte, error) {
 	m, err := r.Request(name, data, timeout)

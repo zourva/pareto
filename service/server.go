@@ -182,7 +182,7 @@ func (s *RegistryServer) onServiceDown(serviceName string) {
 
 	service := s.GetService(serviceName)
 	if service != nil {
-		service.BeforeDestroyed()
+		//service.BeforeDestroyed()
 
 		s.services.Delete(serviceName)
 	}

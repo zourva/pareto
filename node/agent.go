@@ -6,8 +6,6 @@ import (
 	"github.com/zourva/pareto/box"
 	"github.com/zourva/pareto/box/env"
 	"github.com/zourva/pareto/box/meta"
-	"github.com/zourva/pareto/ipc"
-	"github.com/zourva/pareto/service"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/stats"
@@ -90,7 +88,7 @@ func WithCallbacks(cbs AgentSideHooks) AgentOption {
 // Agent models node of the terminal side.
 type Agent struct {
 	*meta.StateMachine
-	*service.MetaService
+	//*service.MetaService
 	options   agentOptions
 	configMgr AgentConfManager
 	protoMgr  *AgentProto
@@ -113,14 +111,14 @@ func NewAgent(endpoint string, opts ...AgentOption) *Agent {
 
 	c := &Agent{
 		StateMachine: meta.NewStateMachine(agentStateMachine, time.Second),
-		MetaService: service.NewMetaService(&service.Config{
-			Name: agentStateMachine,
-			Messager: ipc.NewMessager(&ipc.MessagerConf{
-				BusConf: &ipc.BusConf{Name: "agent-bus", Type: ipc.InterProcBus, Broker: endpoint},
-				RpcConf: &ipc.RPCConf{Name: "agent-rpc", Type: ipc.InterProcRpc, Broker: endpoint},
-			}),
-			Registerer: nil,
-		}),
+		//MetaService: service.NewMetaService(&service.Config{
+		//	Name: agentStateMachine,
+		//	Messager: ipc.NewMessager(&ipc.MessagerConf{
+		//		BusConf: &ipc.BusConf{Name: "agent-bus", Type: ipc.InterProcBus, Broker: endpoint},
+		//		RpcConf: &ipc.RPCConf{Name: "agent-rpc", Type: ipc.InterProcRpc, Broker: endpoint},
+		//	}),
+		//	Registerer: nil,
+		//}),
 		options:   defaultAgentOptions(),
 		configMgr: NewAgentConfManager(env.GetExecFilePath() + "/../etc/conf.db"),
 		protoMgr:  nil,

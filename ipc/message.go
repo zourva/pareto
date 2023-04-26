@@ -3,8 +3,8 @@ package ipc
 import log "github.com/sirupsen/logrus"
 
 // Messager is a communication endpoint peer,
-// which combines together messaging patterns, namely Bus and RPC.
-// It can acts as an RPC server or client,
+// which combines messaging patterns, namely Bus and RPC.
+// It acts as an RPC server or client,
 // a BUS subscriber or BUS publisher, or both.
 type Messager struct {
 	Bus

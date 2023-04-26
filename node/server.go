@@ -5,7 +5,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zourva/pareto/box"
 	"github.com/zourva/pareto/box/env"
-	"github.com/zourva/pareto/service"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
@@ -52,11 +51,11 @@ func defaultServerOptions() serverOptions {
 	}
 }
 
-// RegistryServer models node of the server side.
+// Server models node of the server side.
 // Based on grpc and protocol buffer v3,
 // we define the s1 interface procedures.
 type Server struct {
-	*service.MetaService
+	//*service.MetaService
 	server  *grpc.Server
 	options serverOptions
 	confMgr ServerConfManager
@@ -88,11 +87,11 @@ func NewServer(endpoint string, opts ...ServerOption) *Server {
 	}
 
 	s := &Server{
-		MetaService: service.NewMetaService(&service.Config{
-			Name:       "s1-server",
-			Messager:   nil,
-			Registerer: nil,
-		}),
+		//MetaService: service.NewMetaService(&service.Config{
+		//	Name:       "s1-server",
+		//	Messager:   nil,
+		//	Registerer: nil,
+		//}),
 		options: defaultServerOptions(),
 		confMgr: NewServerConfManager(env.GetExecFilePath() + "/../etc/node.db"),
 	}

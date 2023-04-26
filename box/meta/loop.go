@@ -72,6 +72,9 @@ type Loop interface {
 	// Alive returns true if loop is running.
 	Alive() bool
 
+	// Stopped returns true if loop is stopped.
+	Stopped() bool
+
 	// Stop stops the internal timer, close channels and clear all states.
 	Stop()
 }
@@ -137,6 +140,11 @@ func (l *TimeWheelLoop) Conf(conf LoopConfig) bool {
 // When the loop is configured to run in async mode,
 // hook functions must be guaranteed to be goroutine-safe.
 func (l *TimeWheelLoop) Run(hooks LoopRunHook) {
+	if l.Alive() {
+		log.Warnf("loop %s alreay started", l.name)
+		return
+	}
+
 	if hooks.Working == nil {
 		log.Errorf("loop %s has not provide main callback func yet", l.name)
 		return
@@ -158,8 +166,16 @@ func (l *TimeWheelLoop) Alive() bool {
 	return l.state == running
 }
 
+func (l *TimeWheelLoop) Stopped() bool {
+	return l.state == stopped
+}
+
 // Stop stops the internal timer, close channels and clear all states.
 func (l *TimeWheelLoop) Stop() {
+	if l.Stopped() {
+		return
+	}
+
 	close(l.quit)
 	l.tick.Stop()
 
