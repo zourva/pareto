@@ -26,7 +26,7 @@ func (r *NatsRPC) Expose(name string, fn interface{}) {
 
 // ExposeV2 exposes a service by associating a handler.
 func (r *NatsRPC) ExposeV2(name string, handler CalleeHandler) error {
-	if handler != nil {
+	if handler == nil {
 		return errors.New("handler must not be nil")
 	}
 
