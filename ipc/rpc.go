@@ -1,6 +1,7 @@
 package ipc
 
 import (
+	"errors"
 	log "github.com/sirupsen/logrus"
 	"reflect"
 	"time"
@@ -54,7 +55,7 @@ type RPCConf struct {
 }
 
 // NewRPC creates a bidirectional RPC-pattern messager.
-func NewRPC(conf *RPCConf) RPC {
+func NewRPC(conf *RPCConf) (RPC, error) {
 	if conf == nil {
 		conf = &RPCConf{
 			Type:   InnerProcRpc,
@@ -65,7 +66,7 @@ func NewRPC(conf *RPCConf) RPC {
 			// broker address must be provided
 			if len(conf.Broker) == 0 {
 				log.Errorln("broker address is necessary when rpc type is inter-proc")
-				return nil
+				return nil, errors.New("broker address is invalid")
 			}
 		}
 	}

@@ -200,18 +200,18 @@ const (
 
 // NewServer creates a new service server.
 func NewServer() *RegistryServer {
-	sm := &RegistryServer{
-		//done: make(chan struct{}),
-	}
-
-	m := ipc.NewMessager(&ipc.MessagerConf{
+	m, err := ipc.NewMessager(&ipc.MessagerConf{
 		BusConf: &ipc.BusConf{Name: busName, Type: ipc.InterProcBus, Broker: brokerAddr},
 		RpcConf: &ipc.RPCConf{Name: busName, Type: ipc.InterProcRpc},
 	})
 
-	if m == nil {
+	if err != nil {
 		log.Errorln("create messager failed")
 		return nil
+	}
+
+	sm := &RegistryServer{
+		messager: m,
 	}
 
 	log.Infoln("service manager created")

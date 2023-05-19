@@ -23,7 +23,11 @@ type NatsBus struct {
 	lock sync.RWMutex             // lock for the *nats.Subscription map
 }
 
-func NewNatsBus(conf *BusConf) Bus {
+// NewNatsBus creates a Bus endpoint
+// according to the conf.
+//
+// Returns nil and any error when failed.
+func NewNatsBus(conf *BusConf) (Bus, error) {
 	if len(conf.Name) == 0 {
 		conf.Name = "nats-based bus"
 	}
@@ -44,8 +48,8 @@ func NewNatsBus(conf *BusConf) Bus {
 			log.Infof("nats reconnected, id = %d", id)
 		}))
 	if err != nil {
-		log.Errorf("connect to broker %s failed: %v\n", conf.Broker, err)
-		return nil
+		log.Errorln("connect to broker failed:", err)
+		return nil, err
 	}
 
 	bus := &NatsBus{
@@ -55,7 +59,7 @@ func NewNatsBus(conf *BusConf) Bus {
 		lock: sync.RWMutex{},
 	}
 
-	return bus
+	return bus, nil
 }
 
 func (n *NatsBus) Publish(topic string, data []byte) error {

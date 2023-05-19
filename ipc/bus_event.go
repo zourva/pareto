@@ -149,10 +149,10 @@ func (bus *EventBus) setupPublish(callback *eventHandler, args ...interface{}) [
 	return passedArguments
 }
 
-func NewEventBus(conf *BusConf) Bus {
+func NewEventBus(conf *BusConf) (Bus, error) {
 	b := &EventBus{
 		handlers: make(map[string][]*eventHandler),
 		lock:     sync.RWMutex{},
 	}
-	return Bus(b)
+	return Bus(b), nil
 }

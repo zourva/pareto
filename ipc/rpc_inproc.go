@@ -79,7 +79,7 @@ func (r *InProcRPC) CallV2(name string, data []byte, timeout time.Duration) ([]b
 	return nil, nil
 }
 
-func NewInProcRPC(conf *RPCConf) RPC {
+func NewInProcRPC(conf *RPCConf) (RPC, error) {
 	inst := &InProcRPC{
 		//network:  "unix",
 		//endpoint: env.GetExecFilePath() + "/rpc.sock",
@@ -92,5 +92,5 @@ func NewInProcRPC(conf *RPCConf) RPC {
 
 	log.Infoln("in-proc rpc service started")
 
-	return inst
+	return inst, nil
 }
