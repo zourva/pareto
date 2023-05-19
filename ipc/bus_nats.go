@@ -28,7 +28,21 @@ func NewNatsBus(conf *BusConf) Bus {
 		conf.Name = "nats-based bus"
 	}
 
-	nc, err := nats.Connect(conf.Broker, nats.Name(conf.Name))
+	nc, err := nats.Connect(conf.Broker,
+		nats.Name(conf.Name),
+		nats.MaxReconnects(-1),
+		nats.ClosedHandler(func(conn *nats.Conn) {
+			id, _ := conn.GetClientID()
+			log.Infof("nats connection %d closed", id)
+		}),
+		nats.DisconnectErrHandler(func(conn *nats.Conn, err error) {
+			id, _ := conn.GetClientID()
+			log.Infof("nats %d disconnected: %v", id, err)
+		}),
+		nats.ReconnectHandler(func(conn *nats.Conn) {
+			id, _ := conn.GetClientID()
+			log.Infof("nats reconnected, id = %d", id)
+		}))
 	if err != nil {
 		log.Errorf("connect to broker %s failed: %v\n", conf.Broker, err)
 		return nil

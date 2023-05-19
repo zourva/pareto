@@ -9,9 +9,10 @@ import (
 	"time"
 )
 
-// NatsBus implements the Bus interface, thus can be used as a publisher, a subscriber or both.
-// It creates a connection to a nats broker and use the connection object as
-// the underlying carrier for bus messaging patterns.
+// NatsRPC implements the RPC interface, thus can be used
+// as an RPCServer, an RPCClient or both.
+// It creates a connection to a nats broker and use
+// the connection object as the underlying carrier for RR messaging patterns.
 type NatsRPC struct {
 	*nats.Conn
 	conf *RPCConf
@@ -72,7 +73,21 @@ func NewNatsRPC(conf *RPCConf) RPC {
 		conf.Name = "nats-based rpc"
 	}
 
-	nc, err := nats.Connect(conf.Broker, nats.Name(conf.Name))
+	nc, err := nats.Connect(conf.Broker,
+		nats.Name(conf.Name),
+		nats.MaxReconnects(-1),
+		nats.ClosedHandler(func(conn *nats.Conn) {
+			id, _ := conn.GetClientID()
+			log.Infof("nats connection %d closed", id)
+		}),
+		nats.DisconnectErrHandler(func(conn *nats.Conn, err error) {
+			id, _ := conn.GetClientID()
+			log.Infof("nats %d disconnected: %v", id, err)
+		}),
+		nats.ReconnectHandler(func(conn *nats.Conn) {
+			id, _ := conn.GetClientID()
+			log.Infof("nats reconnected, id = %d", id)
+		}))
 	if err != nil {
 		log.Errorf("connect to broker %s failed: %v\n", conf.Broker, err)
 		return nil
