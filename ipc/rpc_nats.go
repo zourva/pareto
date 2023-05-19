@@ -68,7 +68,11 @@ func (r *NatsRPC) CallV2(name string, data []byte, timeout time.Duration) ([]byt
 	return m.Data, nil
 }
 
-func NewNatsRPC(conf *RPCConf) RPC {
+// NewNatsRPC creates an RPC channel
+// according to the conf.
+//
+// Returns nil and any error when failed.
+func NewNatsRPC(conf *RPCConf) (RPC, error) {
 	if len(conf.Name) == 0 {
 		conf.Name = "nats-based rpc"
 	}
@@ -89,8 +93,8 @@ func NewNatsRPC(conf *RPCConf) RPC {
 			log.Infof("nats reconnected, id = %d", id)
 		}))
 	if err != nil {
-		log.Errorf("connect to broker %s failed: %v\n", conf.Broker, err)
-		return nil
+		log.Errorln("connect to broker failed:", err)
+		return nil, err
 	}
 
 	rpc := &NatsRPC{
@@ -100,5 +104,5 @@ func NewNatsRPC(conf *RPCConf) RPC {
 		lock: sync.RWMutex{},
 	}
 
-	return rpc
+	return rpc, nil
 }

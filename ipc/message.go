@@ -1,6 +1,9 @@
 package ipc
 
-import log "github.com/sirupsen/logrus"
+import (
+	"errors"
+	log "github.com/sirupsen/logrus"
+)
 
 // Messager is a communication endpoint peer,
 // which combines messaging patterns, namely Bus and RPC.
@@ -23,34 +26,35 @@ type MessagerConf struct {
 //	RPC channel will be created iff RPCConf is not nil.
 //
 // Returns nil when both conf are nil.
-func NewMessager(conf *MessagerConf) *Messager {
+func NewMessager(conf *MessagerConf) (*Messager, error) {
 	if conf == nil || (conf.BusConf == nil && conf.RpcConf == nil) {
 		log.Errorln("conf is nil, cannot create a messager")
-		return nil
+		return nil, errors.New("messager config is invalid")
 	}
 
 	var bus Bus
+	var err error
 	if conf.BusConf != nil {
-		if bus = NewBus(conf.BusConf); bus == nil {
+		if bus, err = NewBus(conf.BusConf); err != nil {
 			log.Errorln("NewBus failed")
-			return nil
+			return nil, err
 		}
 
-		log.Infof("bus messager endpoint %s created", conf.BusConf.Name)
+		log.Infof("bus endpoint %s created", conf.BusConf.Name)
 	} else {
-		log.Infoln("bus messager endpoint creation skipped")
+		log.Infoln("bus endpoint creation skipped")
 	}
 
 	var rpc RPC
 	if conf.RpcConf != nil {
-		if rpc = NewRPC(conf.RpcConf); rpc == nil {
+		if rpc, err = NewRPC(conf.RpcConf); err != nil {
 			log.Errorln("NewRPC failed")
-			return nil
+			return nil, err
 		}
 
-		log.Infof("rpc messager channel %s created", conf.RpcConf.Name)
+		log.Infof("rpc channel %s created", conf.RpcConf.Name)
 	} else {
-		log.Infoln("rpc messager channel creation skipped")
+		log.Infoln("rpc channel creation skipped")
 	}
 
 	m := &Messager{
@@ -58,7 +62,7 @@ func NewMessager(conf *MessagerConf) *Messager {
 		RPC: rpc,
 	}
 
-	log.Infoln("a messager is created")
+	log.Infoln("messager created")
 
-	return m
+	return m, nil
 }

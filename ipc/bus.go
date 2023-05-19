@@ -1,6 +1,9 @@
 package ipc
 
-import log "github.com/sirupsen/logrus"
+import (
+	"errors"
+	log "github.com/sirupsen/logrus"
+)
 
 type BusType int
 
@@ -44,7 +47,7 @@ type Bus interface {
 
 // NewBus returns a new Bus endpoint and connects itself to the given broker.
 // If conf is nil, bus endpoint will not be created.
-func NewBus(conf *BusConf) Bus {
+func NewBus(conf *BusConf) (Bus, error) {
 	if conf == nil {
 		conf = &BusConf{
 			//Name:   "bus listener",
@@ -56,7 +59,7 @@ func NewBus(conf *BusConf) Bus {
 			// broker address must be provided
 			if len(conf.Broker) == 0 {
 				log.Errorln("broker address is necessary when the bus type is inter-proc")
-				return nil
+				return nil, errors.New("broker address is invalid")
 			}
 		}
 	}
