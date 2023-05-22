@@ -79,6 +79,9 @@ type Loop interface {
 	Stop()
 }
 
+type LoopConf = LoopConfig
+type LoopHooks = LoopRunHook
+
 // NewLoop creates a new loop object with the given name and conf.
 func NewLoop(name string, conf LoopConfig) Loop {
 	ticks := time.Millisecond * 1000
@@ -186,11 +189,11 @@ func (l *TimeWheelLoop) Stop() {
 
 func (l *TimeWheelLoop) runHook(pos string, hook func() error) bool {
 	if err := hook(); err != nil && l.conf.BailOnError {
-		log.Errorf("%s loop %s hook call failed: %v", l.name, pos, err)
+		log.Errorf("%s loop hook %s call failed: %v", l.name, pos, err)
 		return false
 	}
 
-	log.Debugf("%s loop %s hook called", pos, l.name)
+	log.Tracef("%s loop hook %s called", l.name, pos)
 
 	return true
 }
