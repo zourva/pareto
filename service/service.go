@@ -181,19 +181,19 @@ func (s *MetaService) Listen(topic string, fn ipc.Handler) error {
 
 // Notify broadcasts a notice message to all subscribers and assumes no replies.
 func (s *MetaService) Notify(topic string, data []byte) error {
-	log.Debugf("%s publish to %s", s.Name(), topic)
+	log.Tracef("%s publish to %s", s.Name(), topic)
 	return s.Messager().Publish(topic, data)
 }
 
 // ExposeMethod registers a server-side method, identified by name, with the given handler.
 func (s *MetaService) ExposeMethod(name string, fn ipc.CalleeHandler) error {
-	log.Debugf("%s expose method %s", s.Name(), name)
+	log.Infof("%s expose method %s", s.Name(), name)
 	return s.Messager().ExposeV2(name, fn)
 }
 
 // CallMethod calls a remote method identified by id.
 func (s *MetaService) CallMethod(name string, data []byte, to time.Duration) ([]byte, error) {
-	log.Debugf("%s invoke rpc %s", s.Name(), name)
+	log.Tracef("%s invoke rpc %s", s.Name(), name)
 	return s.Messager().CallV2(name, data, to)
 }
 
