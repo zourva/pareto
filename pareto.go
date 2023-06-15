@@ -6,6 +6,7 @@ import (
 	"github.com/zourva/pareto/box/env"
 	"github.com/zourva/pareto/box/prof"
 	"github.com/zourva/pareto/logger"
+	"os"
 )
 
 type paretoKit struct {
@@ -53,6 +54,10 @@ func WithLogger(l *logger.Logger) Option {
 func WithWorkingDir(wd *env.WorkingDir) Option {
 	return func() {
 		bot.workingDir = wd
+		err := os.Chdir(env.GetExecFilePath() + "/../")
+		if err != nil {
+			log.Fatalln("change working dir failed:", err)
+		}
 	}
 }
 

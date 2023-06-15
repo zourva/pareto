@@ -247,7 +247,7 @@ func (sm *StateMachine) RestoreState() {
 	sm.MoveToState(sm.saved)
 }
 
-// trigger triggers execution of the action defined in current state.
+// triggers execution of the action defined in current state.
 func (sm *StateMachine) trigger() {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()

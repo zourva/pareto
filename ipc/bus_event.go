@@ -2,7 +2,6 @@ package ipc
 
 import (
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"reflect"
 	"sync"
 )
@@ -84,7 +83,7 @@ func (bus *EventBus) Publish(topic string, data []byte) error {
 				bus.removeHandler(topic, i)
 			}
 
-			log.Tracef("publish to %s with %v", topic, handler.callBack)
+			//log.Tracef("publish to %s with %v", topic, handler.callBack)
 			//TODO: try goroutine pooling
 			go bus.doPublish(handler, data)
 		}

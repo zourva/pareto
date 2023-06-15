@@ -21,7 +21,7 @@ type WorkingDir struct {
 	// Path of the executable with file name excluded
 	ExecPath string
 
-	// Sub-directories in the working dir
+	// Subdirectories in the working dir
 	Directories []string
 }
 

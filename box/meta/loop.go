@@ -193,7 +193,7 @@ func (l *TimeWheelLoop) runHook(pos string, hook func() error) bool {
 		return false
 	}
 
-	log.Tracef("%s loop hook %s called", l.name, pos)
+	//log.Tracef("%s loop hook %s called", l.name, pos)
 
 	return true
 }
@@ -242,7 +242,7 @@ func (l *TimeWheelLoop) loop(hooks *LoopRunHook) {
 			//	log.Tracef("%s loop Quit threshold exceeds", l.name)
 			//}
 
-			log.Tracef("%s loop cycle check done", l.name)
+			//log.Tracef("%s loop cycle check done", l.name)
 		}
 	}
 }
