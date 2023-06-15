@@ -50,7 +50,16 @@ func WithLogger(l *logger.Logger) Option {
 	}
 }
 
-// WithWorkingDir allows to hint working dir layout.
+// WithWorkingDirLayout allows to hint working dir layout.
+func WithWorkingDirLayout(wd *env.WorkingDir) Option {
+	return func() {
+		bot.workingDir = wd
+	}
+}
+
+// WithWorkingDir acts the same as WithWorkingDirLayout except that
+// it also set system level working dir, using os.Chdir, to the parent
+// directory of this executable.
 func WithWorkingDir(wd *env.WorkingDir) Option {
 	return func() {
 		bot.workingDir = wd
