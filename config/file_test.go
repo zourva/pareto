@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"github.com/stretchr/testify/assert"
 	"os"
@@ -25,7 +26,11 @@ func TestLoadJsonConfig(t *testing.T) {
 	}
 	data, err := json.Marshal(&src)
 	assert.Nil(t, err)
-	err = os.WriteFile(file, data, 666)
+
+	var dst bytes.Buffer
+	_ = json.Indent(&dst, data, "", "")
+	t.Log(dst.String())
+	err = os.WriteFile(file, dst.Bytes(), 666)
 	assert.Nil(t, err)
 
 	var tc testConf

@@ -25,8 +25,9 @@ func LoadJsonConfig(file string, obj any) error {
 		log.Errorln("unmarshal config file failed:", err)
 		return err
 	}
+
 	var dst bytes.Buffer
-	json.Indent(&dst, buf, "\n", "")
-	log.Infoln("config file loaded: ", string(buf))
+	_ = json.Compact(&dst, buf)
+	log.Infoln("config file loaded: ", dst.String())
 	return nil
 }
