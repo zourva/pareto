@@ -5,6 +5,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zourva/pareto/box/env"
 	"github.com/zourva/pareto/box/prof"
+	"github.com/zourva/pareto/config"
 	"github.com/zourva/pareto/logger"
 	"os"
 )
@@ -12,9 +13,9 @@ import (
 type paretoKit struct {
 	workingDir *env.WorkingDir
 	logger     *logger.Logger
-	//diagnoser  *diagnoser.Diagnoser
-	//monitor    *monitor.SysMonitor
-	//updater    *updater.OtaManager
+	// diagnoser  *diagnoser.Diagnoser
+	// monitor    *monitor.SysMonitor
+	// updater    *updater.OtaManager
 	profiler  *prof.Profiler
 	flagParse bool
 }
@@ -50,6 +51,17 @@ func WithLogger(l *logger.Logger) Option {
 	}
 }
 
+// WithLoggerProvider allows to provide a logger create function
+func WithLoggerProvider(provider func() *logger.Logger) Option {
+	return func() {
+		l := provider()
+		if l == nil {
+			log.Fatalln("call user provided create logger function failed")
+		}
+		bot.logger = l
+	}
+}
+
 // WithWorkingDirLayout allows to hint working dir layout.
 func WithWorkingDirLayout(wd *env.WorkingDir) Option {
 	return func() {
@@ -70,29 +82,48 @@ func WithWorkingDir(wd *env.WorkingDir) Option {
 	}
 }
 
-//// WithDiagnoser allows to provide a diagnoser service config
-//// as an option.
-//func WithDiagnoser(d *diagnoser.Diagnoser) Option {
+// WithJsonConfParser
+// To load the specified configuration file
+// and invoke the user function for parsing
+func WithJsonConfParser(file string, obj any, f func(obj any) error) Option {
+	return func() {
+		err := config.LoadJsonConfig(file, obj)
+		if err != nil {
+			log.Fatalln("load config file(", file, ") failed:", err)
+		}
+
+		if f != nil {
+			err = f(obj)
+			if err != nil {
+				log.Fatalln("call user provided config parse function failed", err)
+			}
+		}
+	}
+}
+
+// // WithDiagnoser allows to provide a diagnoser service config
+// // as an option.
+// func WithDiagnoser(d *diagnoser.Diagnoser) Option {
 //	return func() {
 //		bot.diagnoser = d
 //	}
-//}
+// }
 
-//// WithUpdater allows to provide an updater service config
-//// as an option.
-//func WithUpdater(u *updater.OtaManager) Option {
+// // WithUpdater allows to provide an updater service config
+// // as an option.
+// func WithUpdater(u *updater.OtaManager) Option {
 //	return func() {
 //		bot.updater = u
 //	}
-//}
+// }
 
-//// WithMonitor allows to provide a monitor service config
-//// as an option.
-//func WithMonitor(m *monitor.SysMonitor) Option {
+// // WithMonitor allows to provide a monitor service config
+// // as an option.
+// func WithMonitor(m *monitor.SysMonitor) Option {
 //	return func() {
 //		bot.monitor = m
 //	}
-//}
+// }
 
 // WithCli allows to provide a command line interface component config
 // as an option.
@@ -111,9 +142,9 @@ func SetupWithOpts(options ...Option) {
 	log.Infoln("setup pareto environment done")
 }
 
-//// Setup creates a default logger and working dir,
-//// enables flag.Parse
-//func Setup() {
+// // Setup creates a default logger and working dir,
+// // enables flag.Parse
+// func Setup() {
 //	SetupWithOpts(
 //		EnableFlagParse(true),
 //		WithLogger(
@@ -134,7 +165,7 @@ func SetupWithOpts(options ...Option) {
 //					{Name: "log", Mode: 0755},
 //				}),
 //		))
-//}
+// }
 
 // Teardown tears down the working space
 func Teardown() {

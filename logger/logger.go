@@ -9,27 +9,27 @@ import (
 
 // Options defines creation option of logger.
 type Options struct {
-	//"v", "vv", or "vvv"
-	Verbosity string
+	// "v", "vv", or "vvv"
+	Verbosity string `json:"verbosity,omitempty" yaml:"verbosity"`
 
-	//stdout/stderr or filename
-	LogFileName string
+	// stdout/stderr or filename
+	LogFileName string `json:"logFileName,omitempty" yaml:"logFileName"`
 
-	//Max size in MB of the log file before it gets rotated. It defaults to 100MB.
-	MaxSize int
+	// Max size in MB of the log file before it gets rotated. It defaults to 100MB.
+	MaxSize int `json:"maxSize,omitempty" yaml:"maxSize"`
 
-	//Max number of days to retain old log files based on the timestamp encoded in their filename.
+	// Max number of days to retain old log files based on the timestamp encoded in their filename.
 	//
-	//It defaults to 7 days.
-	MaxAge int
+	// It defaults to 7 days.
+	MaxAge int `json:"maxAge,omitempty" yaml:"maxAge"`
 
-	//Max number of old log files to retain.
-	//It defaults to 3 files.
+	// Max number of old log files to retain.
+	// It defaults to 3 files.
 	//
-	//Any files older than MaxAge days are deleted, regardless of MaxBackups.
+	// Any files older than MaxAge days are deleted, regardless of MaxBackups.
 	//
-	//If MaxBackups and MaxAge are both 0, no old log files will be deleted.
-	MaxBackups int
+	// If MaxBackups and MaxAge are both 0, no old log files will be deleted.
+	MaxBackups int `json:"maxBackups,omitempty" yaml:"maxBackups"`
 }
 
 // Logger abstracts pareto logger.
