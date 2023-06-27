@@ -1,8 +1,10 @@
 package pareto
 
 import (
+	"encoding/json"
 	"flag"
 	log "github.com/sirupsen/logrus"
+	"github.com/zourva/pareto/box"
 	"github.com/zourva/pareto/box/env"
 	"github.com/zourva/pareto/box/prof"
 	"github.com/zourva/pareto/logger"
@@ -12,9 +14,9 @@ import (
 type paretoKit struct {
 	workingDir *env.WorkingDir
 	logger     *logger.Logger
-	//diagnoser  *diagnoser.Diagnoser
-	//monitor    *monitor.SysMonitor
-	//updater    *updater.OtaManager
+	// diagnoser  *diagnoser.Diagnoser
+	// monitor    *monitor.SysMonitor
+	// updater    *updater.OtaManager
 	profiler  *prof.Profiler
 	flagParse bool
 }
@@ -50,6 +52,17 @@ func WithLogger(l *logger.Logger) Option {
 	}
 }
 
+// CreateLogger allows to provide a logger create
+func CreateLogger(creator func() *logger.Logger) Option {
+	return func() {
+		l := creator()
+		if l == nil {
+			log.Fatalln("calling user function for create logger failed")
+		}
+		bot.logger = l
+	}
+}
+
 // WithWorkingDirLayout allows to hint working dir layout.
 func WithWorkingDirLayout(wd *env.WorkingDir) Option {
 	return func() {
@@ -70,29 +83,48 @@ func WithWorkingDir(wd *env.WorkingDir) Option {
 	}
 }
 
-//// WithDiagnoser allows to provide a diagnoser service config
-//// as an option.
-//func WithDiagnoser(d *diagnoser.Diagnoser) Option {
+// WithJsonConfParser
+// To load the specified configuration file
+// and invoke the user function for parsing or checking
+func WithJsonConfParser(file string, obj any, f func(obj any) error) Option {
+	return func() {
+		err := LoadJsonConfig(file, obj)
+		if err != nil {
+			log.Fatalln("load config file(", file, ") failed:", err)
+		}
+
+		if f != nil {
+			err = f(obj)
+			if err != nil {
+				log.Fatalln("calling user function for parsing or checking configuration failed:", err)
+			}
+		}
+	}
+}
+
+// // WithDiagnoser allows to provide a diagnoser service config
+// // as an option.
+// func WithDiagnoser(d *diagnoser.Diagnoser) Option {
 //	return func() {
 //		bot.diagnoser = d
 //	}
-//}
+// }
 
-//// WithUpdater allows to provide an updater service config
-//// as an option.
-//func WithUpdater(u *updater.OtaManager) Option {
+// // WithUpdater allows to provide an updater service config
+// // as an option.
+// func WithUpdater(u *updater.OtaManager) Option {
 //	return func() {
 //		bot.updater = u
 //	}
-//}
+// }
 
-//// WithMonitor allows to provide a monitor service config
-//// as an option.
-//func WithMonitor(m *monitor.SysMonitor) Option {
+// // WithMonitor allows to provide a monitor service config
+// // as an option.
+// func WithMonitor(m *monitor.SysMonitor) Option {
 //	return func() {
 //		bot.monitor = m
 //	}
-//}
+// }
 
 // WithCli allows to provide a command line interface component config
 // as an option.
@@ -111,9 +143,9 @@ func SetupWithOpts(options ...Option) {
 	log.Infoln("setup pareto environment done")
 }
 
-//// Setup creates a default logger and working dir,
-//// enables flag.Parse
-//func Setup() {
+// // Setup creates a default logger and working dir,
+// // enables flag.Parse
+// func Setup() {
 //	SetupWithOpts(
 //		EnableFlagParse(true),
 //		WithLogger(
@@ -134,7 +166,7 @@ func SetupWithOpts(options ...Option) {
 //					{Name: "log", Mode: 0755},
 //				}),
 //		))
-//}
+// }
 
 // Teardown tears down the working space
 func Teardown() {
@@ -143,4 +175,26 @@ func Teardown() {
 	}
 
 	log.Infoln("teardown pareto environment done")
+}
+
+func LoadJsonConfig(file string, obj any) error {
+	if ok, err := box.PathExists(file); err != nil || !ok {
+		log.Errorf("config file(%s) not available:%v", file, err)
+		return err
+	}
+
+	buf, err := os.ReadFile(file)
+	if err != nil {
+		log.Errorln("load config file failed:", err)
+		return err
+	}
+
+	err = json.Unmarshal(buf, obj)
+	if err != nil {
+		log.Errorln("unmarshal config file failed:", err)
+		return err
+	}
+
+	log.Infoln("config file loaded: ", string(buf))
+	return nil
 }
