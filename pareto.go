@@ -1,12 +1,11 @@
 package pareto
 
 import (
-	"encoding/json"
 	"flag"
 	log "github.com/sirupsen/logrus"
-	"github.com/zourva/pareto/box"
 	"github.com/zourva/pareto/box/env"
 	"github.com/zourva/pareto/box/prof"
+	"github.com/zourva/pareto/config"
 	"github.com/zourva/pareto/logger"
 	"os"
 )
@@ -52,12 +51,12 @@ func WithLogger(l *logger.Logger) Option {
 	}
 }
 
-// CreateLogger allows to provide a logger create
-func CreateLogger(creator func() *logger.Logger) Option {
+// WithLoggerProvider allows to provide a logger create function
+func WithLoggerProvider(provider func() *logger.Logger) Option {
 	return func() {
-		l := creator()
+		l := provider()
 		if l == nil {
-			log.Fatalln("calling user function for create logger failed")
+			log.Fatalln("call user provided create logger function failed")
 		}
 		bot.logger = l
 	}
@@ -85,10 +84,10 @@ func WithWorkingDir(wd *env.WorkingDir) Option {
 
 // WithJsonConfParser
 // To load the specified configuration file
-// and invoke the user function for parsing or checking
+// and invoke the user function for parsing
 func WithJsonConfParser(file string, obj any, f func(obj any) error) Option {
 	return func() {
-		err := LoadJsonConfig(file, obj)
+		err := config.LoadJsonConfig(file, obj)
 		if err != nil {
 			log.Fatalln("load config file(", file, ") failed:", err)
 		}
@@ -96,7 +95,7 @@ func WithJsonConfParser(file string, obj any, f func(obj any) error) Option {
 		if f != nil {
 			err = f(obj)
 			if err != nil {
-				log.Fatalln("calling user function for parsing or checking configuration failed:", err)
+				log.Fatalln("call user provided config parse function failed", err)
 			}
 		}
 	}
@@ -175,26 +174,4 @@ func Teardown() {
 	}
 
 	log.Infoln("teardown pareto environment done")
-}
-
-func LoadJsonConfig(file string, obj any) error {
-	if ok, err := box.PathExists(file); err != nil || !ok {
-		log.Errorf("config file(%s) not available:%v", file, err)
-		return err
-	}
-
-	buf, err := os.ReadFile(file)
-	if err != nil {
-		log.Errorln("load config file failed:", err)
-		return err
-	}
-
-	err = json.Unmarshal(buf, obj)
-	if err != nil {
-		log.Errorln("unmarshal config file failed:", err)
-		return err
-	}
-
-	log.Infoln("config file loaded: ", string(buf))
-	return nil
 }
