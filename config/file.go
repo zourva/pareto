@@ -28,6 +28,8 @@ func LoadJsonConfig(file string, obj any) error {
 
 	var dst bytes.Buffer
 	_ = json.Compact(&dst, buf)
-	log.Infoln("config file loaded: ", dst.String())
+
+	log.Traceln("json config loaded: ", dst.String())
+
 	return nil
 }
