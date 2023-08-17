@@ -8,47 +8,47 @@ import (
 // LoopRunHook defines loop lifecycle callbacks.
 // for ref, see http://docs.libuv.org/en/v1.x/loop.html
 type LoopRunHook struct {
-	//optional, called, once, before the underlying loop starts
+	// optional, called, once, before the underlying loop starts
 	BeforeRun func() error
 
-	//mandatory, called periodically based on the configured ticks
+	// mandatory, called periodically based on the configured ticks
 	Working func() error
 
-	//optional, called periodically based on the configured ticks or suppressed if set to nil
+	// optional, called periodically based on the configured ticks or suppressed if set to nil
 	Stalling func() error
 
-	//optional, called, once, before the underlying loop quits
+	// optional, called, once, before the underlying loop quits
 	BeforeQuit func() error
 }
 
 // LoopConfig loop configuration, all options have default values except CbWork
 type LoopConfig struct {
-	//Tick defines clock pulse base precision/resolution of a time-wheel loop in milliseconds.
-	//Zero value means the default(1000 ms).
+	// Tick defines clock pulse base precision/resolution of a time-wheel loop in milliseconds.
+	// Zero value means the default(1000 ms).
 	Tick uint32
 
-	//Work defines the tick count of work check interval.
-	//Zero value means the default(1 tick).
+	// Work defines the tick count of work check interval.
+	// Zero value means the default(1 tick).
 	Work uint32
 
-	//Idle defines the tick count of idle check interval.
-	//Zero value means the default(1 tick).
+	// Idle defines the tick count of idle check interval.
+	// Zero value means the default(1 tick).
 	Idle uint32
 
-	//#ticks after which the loop will be terminated,
+	// #ticks after which the loop will be terminated,
 	// set to 0 as disabling auto termination
-	//Quit uint32
+	// Quit uint32
 
-	//Sync, if set to false, hook functions provided by Run
-	//will be executed in another go routine, i.e. asynchronously.
+	// Sync, if set to false, hook functions provided by Run
+	// will be executed in another go routine, i.e. asynchronously.
 	//
-	//It's false by default.
+	// It's false by default.
 	Sync bool
 
-	//BailOnError, if set to true, tells the loop manager to break the underlying loop
-	//when error is returned by user hooks, otherwise, the loop continues to next iteration.
+	// BailOnError, if set to true, tells the loop manager to break the underlying loop
+	// when error is returned by user hooks, otherwise, the loop continues to next iteration.
 	//
-	//It's false by default.
+	// It's false by default.
 	BailOnError bool
 }
 
@@ -95,8 +95,8 @@ func NewLoop(name string, conf LoopConfig) Loop {
 		state: initialized,
 		conf:  conf,
 		tick:  time.NewTicker(ticks),
-		quit:  make(chan struct{}),
-		wait:  make(chan struct{}),
+		// quit:  make(chan struct{}),
+		// wait:  make(chan struct{}),
 	}
 }
 
@@ -153,6 +153,8 @@ func (l *TimeWheelLoop) Run(hooks LoopRunHook) {
 		return
 	}
 
+	l.quit = make(chan struct{})
+	l.wait = make(chan struct{})
 	l.state = running
 
 	log.Infof("%s loop started", l.name)
@@ -175,6 +177,10 @@ func (l *TimeWheelLoop) Stopped() bool {
 
 // Stop stops the internal timer, close channels and clear all states.
 func (l *TimeWheelLoop) Stop() {
+	if l.state < running {
+		return
+	}
+
 	if l.Stopped() {
 		return
 	}
@@ -193,7 +199,7 @@ func (l *TimeWheelLoop) runHook(pos string, hook func() error) bool {
 		return false
 	}
 
-	//log.Tracef("%s loop hook %s called", l.name, pos)
+	// log.Tracef("%s loop hook %s called", l.name, pos)
 
 	return true
 }
@@ -237,12 +243,12 @@ func (l *TimeWheelLoop) loop(hooks *LoopRunHook) {
 				}
 			}
 
-			//if l.conf.Quit != 0 && workCount%l.conf.Quit == 0 {
+			// if l.conf.Quit != 0 && workCount%l.conf.Quit == 0 {
 			//	l.stopTrigger()
 			//	log.Tracef("%s loop Quit threshold exceeds", l.name)
-			//}
+			// }
 
-			//log.Tracef("%s loop cycle check done", l.name)
+			// log.Tracef("%s loop cycle check done", l.name)
 		}
 	}
 }
