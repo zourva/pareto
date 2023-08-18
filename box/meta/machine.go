@@ -61,9 +61,10 @@ func (s *State) trigger() {
 			if s.tickCnt%5 == 0 {
 				if s.machine.trace {
 					log.Debugf("state machine [%s] trigger action %s", s.machine.name, s.Name)
-				} else {
-					log.Tracef("state machine [%s] trigger action %s", s.machine.name, s.Name)
 				}
+				//else {
+				//	log.Tracef("state machine [%s] trigger action %s", s.machine.name, s.Name)
+				//}
 			}
 
 			s.Action(s.Args)
@@ -83,6 +84,7 @@ func (sm *StateMachine) GetState() string {
 }
 
 // EnableStateTrace enables or disables the tracing of internal flow.
+// It's disabled by default.
 func (sm *StateMachine) EnableStateTrace(on bool) {
 	sm.trace = on
 }
@@ -101,9 +103,10 @@ func (sm *StateMachine) MoveToState(s string) bool {
 
 	if sm.trace {
 		log.Debugf("state machine [%s] move state from %s to %s", sm.name, sm.current, s)
-	} else {
-		log.Tracef("state machine [%s] move state from %s to %s", sm.name, sm.current, s)
 	}
+	//else {
+	//	log.Tracef("state machine [%s] move state from %s to %s", sm.name, sm.current, s)
+	//}
 
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
