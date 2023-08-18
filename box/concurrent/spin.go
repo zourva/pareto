@@ -8,10 +8,10 @@ import (
 
 // see ref to: https://github.com/tidwall/spinlock/blob/master/locker.go
 
-// Locker is a spinlock implementation.
+// spinLock is a spin lock implementation.
 //
-// A Locker must not be copied after first use.
-type Locker struct {
+// NOTE: A Locker must not be copied after first use.
+type spinLock struct {
 	_    sync.Mutex // for copy protection compiler warning
 	lock uintptr
 }
@@ -21,16 +21,21 @@ type Locker struct {
 //
 // If the lock is already in use, the calling goroutine
 // blocks until the locker is available.
-func (l *Locker) Lock() {
-loop:
-	if !atomic.CompareAndSwapUintptr(&l.lock, 0, 1) {
-		// need to yield?
+func (l *spinLock) Lock() {
+	for !atomic.CompareAndSwapUintptr(&l.lock, 0, 1) {
 		runtime.Gosched()
-		goto loop
 	}
 }
 
 // Unlock unlocks l.
-func (l *Locker) Unlock() {
+func (l *spinLock) Unlock() {
 	atomic.StoreUintptr(&l.lock, 0)
+}
+
+// NewSpinLock creates a spin lock.
+//
+// NOTE: It is NOT re-entrant.
+func NewSpinLock() sync.Locker {
+	var lock spinLock
+	return &lock
 }
