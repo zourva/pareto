@@ -98,6 +98,9 @@ type Config struct {
 
 	//Registerer as a delegator to interact with service server, mandatory.
 	Registerer *Registerer
+
+	//EnableTrace
+	EnableTrace bool
 }
 
 // Endpoint defines the identity of a bus endpoint or rpc channel.
@@ -181,7 +184,10 @@ func (s *MetaService) Listen(topic string, fn ipc.Handler) error {
 
 // Notify broadcasts a notice message to all subscribers and assumes no replies.
 func (s *MetaService) Notify(topic string, data []byte) error {
-	log.Tracef("%s publish to %s", s.Name(), topic)
+	if s.conf.EnableTrace {
+		log.Tracef("%s publish to %s", s.Name(), topic)
+	}
+
 	return s.Messager().Publish(topic, data)
 }
 
