@@ -195,10 +195,12 @@ func (s *RegistryServer) onServiceDown(serviceName string) {
 const (
 	busName    = "service server messager bus"
 	rpcName    = "service server messager rpc"
-	brokerAddr = "nats://dag0HTXl4RGg7dXdaJwbC8@localhost:4222"
+	brokerAddr = ""
 )
 
 // NewServer creates a new service server.
+//
+//	NOTE: NOT used yet.
 func NewServer() *RegistryServer {
 	m, err := ipc.NewMessager(&ipc.MessagerConf{
 		BusConf: &ipc.BusConf{Name: busName, Type: ipc.InterProcBus, Broker: brokerAddr},

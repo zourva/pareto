@@ -40,7 +40,8 @@ func NewMessager(conf *MessagerConf) (*Messager, error) {
 			return nil, err
 		}
 
-		log.Infof("bus endpoint %s created", conf.BusConf.Name)
+		log.Infof("type %d bus endpoint %s(%p) created",
+			conf.BusConf.Type, conf.BusConf.Name, bus)
 	} else {
 		log.Infoln("bus endpoint creation skipped")
 	}
@@ -52,7 +53,8 @@ func NewMessager(conf *MessagerConf) (*Messager, error) {
 			return nil, err
 		}
 
-		log.Infof("rpc channel %s created", conf.RpcConf.Name)
+		log.Infof("type %d rpc channel %s(%p) created",
+			conf.RpcConf.Type, conf.RpcConf.Name, rpc)
 	} else {
 		log.Infoln("rpc channel creation skipped")
 	}
@@ -62,7 +64,7 @@ func NewMessager(conf *MessagerConf) (*Messager, error) {
 		RPC: rpc,
 	}
 
-	log.Infoln("messager created")
+	log.Infof("messager %p is created", m)
 
 	return m, nil
 }

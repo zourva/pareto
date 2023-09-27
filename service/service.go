@@ -4,6 +4,7 @@ import (
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/zourva/pareto/ipc"
+	"github.com/zourva/pareto/res"
 	"time"
 )
 
@@ -220,7 +221,7 @@ func NewMetaService(conf *Config) *MetaService {
 	}
 
 	if conf.Interval == 0 {
-		conf.Interval = 5
+		conf.Interval = res.ServiceStatusReportInterval
 	}
 
 	if len(conf.Endpoint) == 0 {
@@ -232,6 +233,60 @@ func NewMetaService(conf *Config) *MetaService {
 	}
 
 	return s
+}
+
+// NewGenericMetaService creates a generic meta service with the given name
+// and use default values for other config items.
+//
+// A default messager is created with:
+//
+//  1. both BUS and RPC capabilities enabled,
+//  2. both BUS and RPC using inter-proc pattern with the same broker endpoint,
+//  3. names for BUS & RPC created from the service name with a format of
+//     {service name}-bus and {service name}-rpc
+//
+// A default register is also created associating with the default messager.
+func NewGenericMetaService(name, broker string) *MetaService {
+	if len(name) == 0 || len(broker) == 0 {
+		log.Errorln("service name/broker must not be empty")
+		return nil
+	}
+
+	// create default messager
+	busName := fmt.Sprintf("%s-bus", name)
+	rpcName := fmt.Sprintf("%s-rpc", name)
+	messager, err := ipc.NewMessager(&ipc.MessagerConf{
+		BusConf: &ipc.BusConf{
+			Name:   busName,
+			Type:   ipc.InterProcBus,
+			Broker: broker},
+		RpcConf: &ipc.RPCConf{
+			Name:   rpcName,
+			Type:   ipc.InterProcRpc,
+			Broker: broker},
+	})
+	if messager == nil || err != nil {
+		log.Errorln("create default messager failed", err)
+		return nil
+	}
+
+	// create default registerer
+	registerer := NewRegisterer(messager)
+	if registerer == nil {
+		log.Errorln("create default registerer failed")
+		return nil
+	}
+
+	conf := &Config{
+		Name:        name,
+		Endpoint:    fmt.Sprintf("%s/status", name),
+		Interval:    res.ServiceStatusReportInterval,
+		Messager:    messager,
+		Registerer:  registerer,
+		EnableTrace: false,
+	}
+
+	return NewMetaService(conf)
 }
 
 // Start starts the given service in the following sequence:

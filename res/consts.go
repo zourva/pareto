@@ -25,3 +25,7 @@ const (
 	// manager to do the cleaning.
 	ServiceDown = "/service-manager/service/down"
 )
+
+const (
+	ServiceStatusReportInterval = 5
+)
