@@ -2,7 +2,7 @@ package meta
 
 import (
 	log "github.com/sirupsen/logrus"
-	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -23,13 +23,15 @@ type State struct {
 // StateMachine sums all states and related options to make a DFA.
 type StateMachine struct {
 	name   string
-	states map[string]*State // not goroutine-safe, used in init/exit phase only
+	states map[string]*State // not goroutine-safe, use in read-only mode after initialization
 
-	starting string       // name of starting state
-	stopping string       // name of stopping state
-	saved    string       // save current state for later on restore
-	current  string       // current state
-	mutex    sync.RWMutex // mutex for current state
+	starting string // name of starting state
+	stopping string // name of stopping state
+	saved    string // save state for later restore
+
+	//current  string       // active state
+	//mutex    sync.RWMutex // mutex for active state
+	current atomic.Value
 
 	ticker    *time.Ticker
 	precision time.Duration
@@ -80,7 +82,8 @@ func (s *State) trigger() {
 
 // GetState returns the current state.
 func (sm *StateMachine) GetState() string {
-	return sm.current
+	//return sm.current
+	return sm.current.Load().(string)
 }
 
 // EnableStateTrace enables or disables the tracing of internal flow.
@@ -91,8 +94,8 @@ func (sm *StateMachine) EnableStateTrace(on bool) {
 
 // MoveToState moves the current state to the vien one
 func (sm *StateMachine) MoveToState(s string) bool {
-	if sm.current == s {
-		log.Tracef("state machine [%s] is already in state %s", sm.name, sm.current)
+	if sm.GetState() == s {
+		log.Tracef("state machine [%s] is already in state %s", sm.name, sm.GetState())
 		return true
 	}
 
@@ -102,16 +105,17 @@ func (sm *StateMachine) MoveToState(s string) bool {
 	}
 
 	if sm.trace {
-		log.Debugf("state machine [%s] move state from %s to %s", sm.name, sm.current, s)
+		log.Debugf("state machine [%s] move state from %s to %s", sm.name, sm.GetState(), s)
 	}
 	//else {
 	//	log.Tracef("state machine [%s] move state from %s to %s", sm.name, sm.current, s)
 	//}
 
-	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
+	//sm.mutex.Lock()
+	//defer sm.mutex.Unlock()
+	//sm.current = s
+	sm.current.Store(s)
 
-	sm.current = s
 	return true
 }
 
@@ -191,7 +195,7 @@ func (sm *StateMachine) Startup() bool {
 		return false
 	}
 
-	if sm.current == "" {
+	if sm.GetState() == "" {
 		sm.MoveToState(sm.starting)
 	}
 
@@ -240,7 +244,7 @@ func (sm *StateMachine) Resume() {
 //
 //	NOTE: Not goroutine-safe.
 func (sm *StateMachine) SaveState() {
-	sm.saved = sm.current
+	sm.saved = sm.GetState()
 }
 
 // RestoreState moves to the latest saved state.
@@ -252,10 +256,10 @@ func (sm *StateMachine) RestoreState() {
 
 // triggers execution of the action defined in current state.
 func (sm *StateMachine) trigger() {
-	sm.mutex.RLock()
-	defer sm.mutex.RUnlock()
+	//sm.mutex.RLock()
+	//defer sm.mutex.RUnlock()
 
-	state := sm.states[sm.current]
+	state := sm.states[sm.GetState()]
 	state.trigger()
 }
 
