@@ -53,6 +53,8 @@ func NewStateMachine(name string, precision time.Duration) *StateMachine {
 		trace:     false,
 	}
 
+	sm.current.Store("")
+
 	return sm
 }
 
