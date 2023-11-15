@@ -51,6 +51,40 @@ type Monitor struct {
 	registry *RegistryManager
 }
 
+func (m *Monitor) GetStatus(name string) *Status {
+	reg := m.registry.get(name)
+	if reg == nil {
+		return nil
+	}
+
+	return &Status{
+		Name:  reg.name,
+		State: reg.state,
+		Time:  reg.updateTime,
+	}
+}
+
+func (m *Monitor) GetStatusList() StatusList {
+	var list StatusList
+	m.registry.services.Range(func(key, value any) bool {
+		reg := value.(*registry)
+
+		list.Services = append(list.Services, &Status{
+			Name:  reg.name,
+			State: reg.state,
+			Time:  reg.updateTime,
+			//Health: &StatusConf{
+			//	Interval:  uint32(reg.interval),
+			//	Threshold: uint32(reg.threshold),
+			//},
+		})
+
+		return true
+	})
+
+	return list
+}
+
 var monLock sync.Mutex
 var monitor *Monitor
 

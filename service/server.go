@@ -121,18 +121,6 @@ func (s *RegistryManager) Shutdown() {
 	log.Infoln("registry manager shutdown")
 }
 
-// GetService returns the service associated with the
-// given name or nil if not found.
-//
-//	This method is goroutine-safe.
-func (s *RegistryManager) GetService(name string) Service {
-	if sd, ok := s.services.Load(name); ok {
-		return sd.(Service)
-	}
-
-	return nil
-}
-
 // Registered returns true if the service is
 // registered to the center and false otherwise.
 //
@@ -154,6 +142,18 @@ func (s *RegistryManager) Count() int {
 	})
 
 	return counter
+}
+
+// GetService returns the service associated with the
+// given name or nil if not found.
+//
+//	This method is goroutine-safe.
+func (s *RegistryManager) get(name string) *registry {
+	if sd, ok := s.services.Load(name); ok {
+		return sd.(*registry)
+	}
+
+	return nil
 }
 
 // Up saves a service with the given name and set
