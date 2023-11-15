@@ -1,10 +1,11 @@
 package service
 
 import (
+	"encoding/json"
 	log "github.com/sirupsen/logrus"
 	"github.com/zourva/pareto/box"
-	"github.com/zourva/pareto/ipc"
 	"sync"
+	"time"
 )
 
 //// RegistryServer manages all services implementing the Service interface.
@@ -36,120 +37,47 @@ import (
 //	Detached(name string) bool
 //}
 
-// service registry state
-type state int
-
-const (
-	online state = iota
-	pending
-	offline
-	unknown
-)
-
 // service registry info
 type registry struct {
-	//service registry format:
-	//  {service name}:{messager name}
-	//  e.g.:
-	// 		ip:port
-	//		system-monitor:monitor-rpc-messager
+	//service name
 	name string
 	//server-side-perceived state
-	state state
-	//timestamp in us when up
+	state State
+	//timestamp in ms when up
 	onlineTime uint64
-	//timestamp in us when down
+	//timestamp in ms when down
 	offlineTime uint64
-	//timestamp in us of last heartbeat
-	aliveTime uint64
+	//timestamp in ms of last heartbeat
+	updateTime uint64
+
+	checkTimeout bool
+	interval     uint64 //duration in milliseconds
+	threshold    uint64
 }
 
-// RegistryServer manages all services as service clients.
-type RegistryServer struct {
-	messager *ipc.Messager
-
-	//services repository
-	services sync.Map
-
-	//join for all
-	//done chan struct{}
-}
-
-// GetService returns the service associated with the
-// given name or nil if not found.
-//
-//	This method is goroutine-safe.
-func (s *RegistryServer) GetService(name string) Service {
-	if sd, ok := s.services.Load(name); ok {
-		return sd.(Service)
+func (r *registry) timeout() bool {
+	if !r.checkTimeout {
+		return false
 	}
 
-	return nil
+	duration := box.TimeNowMs() - r.updateTime
+	return duration > r.interval*r.threshold
 }
 
-// Registered returns true if the service is registered to the server and
-// false when not found.
-//
-//	This method is goroutine-safe.
-func (s *RegistryServer) Registered(name string) bool {
-	if _, ok := s.services.Load(name); ok {
-		return true
-	}
-
-	return false
+func (r *registry) offline() {
+	log.Infof("force service %s offline", r.name)
 }
 
-// Up registers a service with the given name and set
-// the its state to online.
-//
-//	This method is goroutine-safe.
-func (s *RegistryServer) Up(name string) {
-	t := box.TimeNowUs()
-	s.services.Store(name, &registry{
-		name:       name,
-		state:      online,
-		onlineTime: t,
-		aliveTime:  t,
-	})
-}
-
-// Down de-registers a service and set its state to offline.
-// Does nothing when the service is not found.
-//
-//	This method is goroutine-safe.
-func (s *RegistryServer) Down(name string) {
-	if _, ok := s.services.Load(name); ok {
-		s.services.Store(name, &registry{
-			name:        name,
-			state:       offline,
-			offlineTime: box.TimeNowUs(),
-		})
-	}
-}
-
-// Shutdown stops the server.
-// It notifies all the registered and alive service clients before quit.
-func (s *RegistryServer) Shutdown() {
-	//notify all registered services
-	//s.messager.Publish(res.ServiceStop)
-	//
-	////wait for all attached services to quit,
-	////making a graceful shutdown
-	//if s.serviceCount() == 0 {
-	//	close(s.done)
-	//} else {
-	//	select {
-	//	case <-s.done:
-	//		log.Infoln("all attached services quit")
-	//		break
-	//	}
-	//}
-
-	log.Infoln("service manager shutdown")
+// RegistryManager manages all services as service clients.
+type RegistryManager struct {
+	*MetaService
+	services sync.Map //registry repository
+	timer    *time.Timer
+	duration time.Duration
 }
 
 // Startup starts the server.
-func (s *RegistryServer) Startup() error {
+func (s *RegistryManager) Startup() bool {
 	////enable service join when exiting
 	//if err := s.Listen(res.ServiceDown, s.onServiceDown); err != nil {
 	//	return err
@@ -162,61 +90,171 @@ func (s *RegistryServer) Startup() error {
 	//
 	//s.Messager().Publish(topic, args...)
 
-	log.Infoln("service manager started")
+	_ = s.Listen(EndpointServiceStatus, s.handleStatus)
+
+	s.timer = time.AfterFunc(s.duration, s.checkTimeout)
+
+	log.Infoln("registry manager started")
+
+	return true
+}
+
+// Shutdown stops the server.
+// It notifies all the registered and alive service clients before quit.
+func (s *RegistryManager) Shutdown() {
+	//notify all registered services
+	//s.messager.Publish(res.ServiceStop)
+	//
+	////wait for all attached services to quit,
+	////making a graceful shutdown
+	//if s.Size() == 0 {
+	//	close(s.done)
+	//} else {
+	//	select {
+	//	case <-s.done:
+	//		log.Infoln("all attached services quit")
+	//		break
+	//	}
+	//}
+	s.timer.Stop()
+
+	log.Infoln("registry manager shutdown")
+}
+
+// GetService returns the service associated with the
+// given name or nil if not found.
+//
+//	This method is goroutine-safe.
+func (s *RegistryManager) GetService(name string) Service {
+	if sd, ok := s.services.Load(name); ok {
+		return sd.(Service)
+	}
 
 	return nil
 }
 
-func (s *RegistryServer) serviceCount() int {
-	var alive = 0
-	s.services.Range(func(key, value interface{}) bool {
-		alive++
+// Registered returns true if the service is
+// registered to the center and false otherwise.
+//
+//	This method is goroutine-safe.
+func (s *RegistryManager) Registered(name string) bool {
+	if _, ok := s.services.Load(name); ok {
+		return true
+	}
+
+	return false
+}
+
+// Count returns number of services registered.
+func (s *RegistryManager) Count() int {
+	var counter = 0
+	s.services.Range(func(key, value any) bool {
+		counter++
 		return true
 	})
 
-	return alive
+	return counter
 }
 
-func (s *RegistryServer) onServiceDown(serviceName string) {
-	log.Infof("[%s] quit acknowledged", serviceName)
-
-	service := s.GetService(serviceName)
-	if service != nil {
-		//service.BeforeDestroyed()
-
-		s.services.Delete(serviceName)
-	}
-
-	if s.serviceCount() == 0 {
-		//close(s.done)
-	}
-}
-
-const (
-	busName    = "service server messager bus"
-	rpcName    = "service server messager rpc"
-	brokerAddr = ""
-)
-
-// NewServer creates a new service server.
+// Up saves a service with the given name and set
+// state to online.
 //
-//	NOTE: NOT used yet.
-func NewServer() *RegistryServer {
-	m, err := ipc.NewMessager(&ipc.MessagerConf{
-		BusConf: &ipc.BusConf{Name: busName, Type: ipc.InterProcBus, Broker: brokerAddr},
-		RpcConf: &ipc.RPCConf{Name: busName, Type: ipc.InterProcRpc},
+//	This method is goroutine-safe.
+func (s *RegistryManager) register(status *Status) {
+	t := box.TimeNowMs()
+	s.services.Store(status.Name, &registry{
+		name:       status.Name,
+		state:      status.State,
+		onlineTime: t,
+		updateTime: t,
 	})
 
-	if err != nil {
-		log.Errorln("create messager failed")
-		return nil
+	log.Infof("service %s registered, state = %s", status.Name, StateString(status.State))
+}
+
+func (s *RegistryManager) update(reg *registry, status *Status) {
+	// update status conf
+	if status.Health != nil {
+		if status.Health.Threshold != 0 &&
+			status.Health.Interval != 0 {
+			reg.checkTimeout = true
+			reg.interval = uint64(status.Health.Interval) * 1000
+			reg.threshold = uint64(status.Health.Threshold)
+		}
 	}
 
-	sm := &RegistryServer{
-		messager: m,
+	// notify watchers if state changed
+	if reg.state != status.State {
+		s.notifyWatched(reg, status)
 	}
 
-	log.Infoln("service manager created")
+	// overwrite states
+	reg.state = status.State
+	reg.updateTime = box.TimeNowMs()
 
-	return sm
+	// de-register if stopped normally
+	if reg.state == Stopped {
+		s.unregister(reg.name)
+	}
+}
+
+// Down de-registers a service and sets state to offline.
+// Does nothing when the service is not found.
+//
+//	This method is goroutine-safe.
+func (s *RegistryManager) unregister(name string) {
+	s.services.Delete(name)
+	log.Infof("service %s unregistered", name)
+}
+
+func (s *RegistryManager) notifyWatched(reg *registry, status *Status) {
+	// TODO:
+	log.Infof("service %s state changed(%s -> %s)",
+		reg.name, StateString(reg.state), StateString(status.State))
+}
+
+func (s *RegistryManager) handleStatus(data []byte) {
+	status := &Status{}
+	if err := json.Unmarshal(data, status); err != nil {
+		log.Errorln("registry manager: json unmarshal failed:", err)
+		return
+	}
+
+	if ss, ok := s.services.Load(status.Name); ok {
+		reg := ss.(*registry)
+		s.update(reg, status)
+	} else {
+		s.register(status)
+	}
+}
+
+func (s *RegistryManager) checkTimeout() {
+	s.services.Range(func(key, value any) bool {
+		service := value.(*registry)
+		if service.timeout() {
+			//force to offline and notify watched
+			service.offline()
+			s.notifyWatched(service, &Status{
+				Name:  service.name,
+				State: Offline,
+				Time:  box.TimeNowMs(),
+			})
+		}
+
+		return true
+	})
+
+	s.timer.Reset(s.duration)
+}
+
+// NewRegistryManager creates a new service server.
+func NewRegistryManager(broker string) *RegistryManager {
+	s := &RegistryManager{
+		MetaService: NewGenericMetaService("registry", broker),
+		duration:    5 * time.Second,
+	}
+
+	log.Infoln("registry manager created")
+
+	return s
 }

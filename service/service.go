@@ -1,10 +1,11 @@
 package service
 
 import (
+	"encoding/json"
 	"fmt"
 	log "github.com/sirupsen/logrus"
+	"github.com/zourva/pareto/box"
 	"github.com/zourva/pareto/ipc"
-	"github.com/zourva/pareto/res"
 	"time"
 )
 
@@ -48,7 +49,9 @@ type Service interface {
 	// The exported content and its format is
 	// implementation-specific and should be carefully
 	// designed by service provider and consumer.
-	Status() []byte
+	Status() *Status
+	MarshalStatus() []byte
+	SetState(state State)
 
 	// Startup should be called by user after a service is created
 	// to enable built-in functions such as status export.
@@ -85,15 +88,6 @@ type Config struct {
 	//Name of the service, mandatory.
 	Name string
 
-	//Endpoint used to export service status periodically, optional.
-	//If not provided, the default format is used: {service name}/status.
-	Endpoint string
-
-	//Interval, in seconds, to refresh and publish service status,
-	//optional with a minimum value of 1 second.
-	//If not provided, the default (5 seconds) is used.
-	Interval uint32
-
 	//Messager to communicate with service server, mandatory.
 	Messager *ipc.Messager
 
@@ -102,30 +96,16 @@ type Config struct {
 
 	//EnableTrace
 	EnableTrace bool
-}
 
-// Endpoint defines the identity of a bus endpoint or rpc channel.
-type Endpoint struct {
-	Service string
-	Object  string
-	Method  string
-}
-
-// SerializedName returns the path-like name of the method, i.e.:
-//
-//	service.object.method
-//
-// e.g.:
-//
-//	webserver/cookie/get
-func (r *Endpoint) SerializedName() string {
-	return fmt.Sprintf("%s/%s/%s", r.Service, r.Object, r.Method)
+	//Status report config
+	Status *StatusConf
 }
 
 // MetaService implements the Service interface and
 // provides a bunch of methods for inheritance.
 type MetaService struct {
-	conf *Config
+	conf   *Config
+	status *Status
 }
 
 func (s *MetaService) Name() string {
@@ -144,12 +124,16 @@ func (s *MetaService) Config() *Config {
 	return s.conf
 }
 
-func (s *MetaService) Status() []byte {
-	return nil
+func (s *MetaService) Status() *Status {
+	return s.status
 }
 
 func (s *MetaService) Startup() bool {
 	return true
+}
+
+func (s *MetaService) SetState(state State) {
+	s.status.State = state
 }
 
 func (s *MetaService) Shutdown() {
@@ -169,6 +153,15 @@ func (s *MetaService) BeforeStopping() {
 
 func (s *MetaService) AfterStopping() {
 	log.Debugln("finish shutdown service", s.Name())
+}
+
+func (s *MetaService) MarshalStatus() []byte {
+	buf, err := json.Marshal(s.status)
+	if err != nil {
+		return []byte("")
+	}
+
+	return buf
 }
 
 //
@@ -220,16 +213,30 @@ func NewMetaService(conf *Config) *MetaService {
 		return nil
 	}
 
-	if conf.Interval == 0 {
-		conf.Interval = res.ServiceStatusReportInterval
-	}
+	if conf.Status == nil {
+		conf.Status = getDefaultStatusConf()
+	} else {
+		if conf.Status.Interval == 0 {
+			conf.Status.Interval = StatusReportInterval
+		}
 
-	if len(conf.Endpoint) == 0 {
-		conf.Endpoint = fmt.Sprintf("%s/status", conf.Name)
+		if conf.Status.Threshold == 0 {
+			conf.Status.Threshold = StatusLostThreshold
+		}
+
+		//if len(conf.Status.endpoint) == 0 {
+		//	//conf.endpoint = fmt.Sprintf("%s/status", conf.Name)
+		//	conf.Status.endpoint = EndpointServiceStatus
+		//}
 	}
 
 	s := &MetaService{
 		conf: conf,
+		status: &Status{
+			Name:  conf.Name,
+			State: Offline,
+			Time:  box.TimeNowMs(),
+		},
 	}
 
 	return s
@@ -279,11 +286,10 @@ func NewGenericMetaService(name, broker string) *MetaService {
 
 	conf := &Config{
 		Name:        name,
-		Endpoint:    fmt.Sprintf("%s/status", name),
-		Interval:    res.ServiceStatusReportInterval,
 		Messager:    messager,
 		Registerer:  registerer,
 		EnableTrace: false,
+		Status:      getDefaultStatusConf(),
 	}
 
 	return NewMetaService(conf)
@@ -294,10 +300,16 @@ func NewGenericMetaService(name, broker string) *MetaService {
 //  2. invokes the user callback service.Start and related hooks.
 //  3. starts the status exporter of Registerer.
 func Start(s Service) bool {
+	s.SetState(Offline)
+
 	if !s.Registerer().Register(s) {
 		log.Errorf("register service %s failed", s.Name())
 		return false
 	}
+
+	s.Registerer().EnableStatusExport()
+
+	s.SetState(Starting)
 
 	s.BeforeStarting()
 	if !s.Startup() {
@@ -305,7 +317,7 @@ func Start(s Service) bool {
 	}
 	s.AfterStarting()
 
-	s.Registerer().EnableStatusExport()
+	s.SetState(Servicing)
 
 	return true
 }
@@ -315,11 +327,15 @@ func Start(s Service) bool {
 //  2. invokes the user callback service.Stop and related hooks.
 //  3. unregisters the service from manager.
 func Stop(s Service) {
-	s.Registerer().DisableStatusExport()
+	s.SetState(Stopping)
 
 	s.BeforeStopping()
 	s.Shutdown()
 	s.AfterStopping()
+
+	s.SetState(Stopped)
+
+	s.Registerer().DisableStatusExport()
 
 	s.Registerer().Unregister()
 }

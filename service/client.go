@@ -29,23 +29,25 @@ func (r *Registerer) EnableStatusExport() {
 	}
 
 	r.exporter = meta.NewLoop("registerer", meta.LoopConfig{
-		Tick: r.service.Config().Interval * 1000,
+		Tick: r.service.Config().Status.Interval * 1000,
 	})
+
+	// always report start
+	_ = r.report()
 
 	// start the loop
 	r.exporter.Run(meta.LoopRunHook{
 		Working: func() error {
-			err := r.messager.Publish(r.service.Config().Endpoint, r.service.Status())
-			if err != nil {
-				log.Warnf("export status for service %s failed: %v", r.service.Name(), err)
-				return err
-			}
-			return nil
+			return r.report()
 		},
 	})
+
 }
 
 func (r *Registerer) DisableStatusExport() {
+	// always report stop
+	_ = r.report()
+
 	r.exporter.Stop()
 }
 
@@ -73,6 +75,15 @@ func (r *Registerer) Register(s Service) bool {
 // Unregister unregisters the service from the registry server.
 func (r *Registerer) Unregister() {
 	//r.messager.CallV2("/ew1/service/deregister", []byte(s.Name()), time.Second)
+}
+
+func (r *Registerer) report() error {
+	err := r.messager.Publish(EndpointServiceStatus, r.service.MarshalStatus())
+	if err != nil {
+		log.Warnf("export status for service %s failed: %v", r.service.Name(), err)
+		return err
+	}
+	return nil
 }
 
 // NewRegisterer creates a new registerer with the
