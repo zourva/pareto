@@ -156,6 +156,8 @@ func (s *MetaService) AfterStopping() {
 }
 
 func (s *MetaService) MarshalStatus() []byte {
+	s.status.Time = box.TimeNowMs()
+	s.status.Health = s.conf.Status
 	buf, err := json.Marshal(s.status)
 	if err != nil {
 		return []byte("")
