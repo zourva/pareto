@@ -85,6 +85,20 @@ func (m *Monitor) GetStatusList() StatusList {
 	return list
 }
 
+// GetNotServicing returns names of services from the given names
+// that are not ready yet.
+func (m *Monitor) GetNotServicing(filtered []string) []string {
+	var result []string
+	for _, name := range filtered {
+		s := m.registry.get(name)
+		if s == nil || s.state != Servicing {
+			result = append(result, name)
+		}
+	}
+
+	return result
+}
+
 var monLock sync.Mutex
 var monitor *Monitor
 
