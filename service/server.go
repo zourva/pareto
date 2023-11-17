@@ -65,6 +65,7 @@ func (r *registry) timeout() bool {
 }
 
 func (r *registry) offline() {
+	r.state = Offline
 	log.Infof("force service %s offline", r.name)
 }
 
