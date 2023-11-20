@@ -2,63 +2,26 @@ package meta
 
 import (
 	log "github.com/sirupsen/logrus"
+	"github.com/zourva/pareto/box"
 	"sync/atomic"
 	"time"
 )
 
 // Action defines the action to execute when a state is reached.
-type Action func(args interface{})
+type Action func(args any)
 
 // State is the state meta info.
-type State struct {
-	Name   string //name of this state
+type State[T string | int32] struct {
+	Name   T      //name of this state
 	Ticks  uint   //optional ticks to wait before trigger action, 0 means no wait
 	Action Action //action of this state when ticks expire
 	Args   interface{}
 
-	tickCnt uint          //ticks already passed after started
-	machine *StateMachine //reference to owner
+	tickCnt uint             //ticks already passed after started
+	machine *StateMachine[T] //reference to owner
 }
 
-// StateMachine sums all states and related options to make a DFA.
-type StateMachine struct {
-	name   string
-	states map[string]*State // not goroutine-safe, use in read-only mode after initialization
-
-	starting string // name of starting state
-	stopping string // name of stopping state
-	saved    string // save state for later restore
-
-	//current  string       // active state
-	//mutex    sync.RWMutex // mutex for active state
-	current atomic.Value
-
-	ticker    *time.Ticker
-	precision time.Duration
-	quit      chan struct{}
-	stopped   chan struct{}
-	trace     bool
-}
-
-// NewStateMachine creates a new state machine
-// with the given name and ticker duration.
-func NewStateMachine(name string, precision time.Duration) *StateMachine {
-	sm := &StateMachine{
-		name:      name,
-		states:    make(map[string]*State),
-		precision: precision,
-		ticker:    time.NewTicker(precision),
-		quit:      make(chan struct{}),
-		stopped:   make(chan struct{}),
-		trace:     false,
-	}
-
-	sm.current.Store("")
-
-	return sm
-}
-
-func (s *State) trigger() {
+func (s *State[T]) trigger() {
 	s.tickCnt++
 	if 0 == s.Ticks || s.tickCnt%s.Ticks == 0 {
 		if s.Action != nil {
@@ -73,7 +36,7 @@ func (s *State) trigger() {
 
 			s.Action(s.Args)
 
-			if s.machine.stopping != "" && s.Name == s.machine.stopping {
+			if !box.IsZero(s.machine.stopping) && s.Name == s.machine.stopping {
 				close(s.machine.stopped)
 				//s.machine.stopped = nil
 				log.Debugf("state machine [%s] stop acknowledged", s.machine.name)
@@ -82,20 +45,58 @@ func (s *State) trigger() {
 	}
 }
 
+// StateMachine sums all states and related options to make a DFA.
+type StateMachine[T string | int32] struct {
+	name   string
+	states map[T]*State[T] // not goroutine-safe, use in read-only mode after initialization
+
+	starting T // name of starting state
+	stopping T // name of stopping state
+	saved    T // save state for later restore
+
+	//current  string       // active state
+	//mutex    sync.RWMutex // mutex for active state
+	current atomic.Value
+
+	ticker    *time.Ticker
+	precision time.Duration
+	quit      chan struct{}
+	stopped   chan struct{}
+	trace     bool
+}
+
+// NewStateMachine creates a new state machine
+// with the given name and ticker duration.
+func NewStateMachine[T string | int32](name string, precision time.Duration) *StateMachine[T] {
+	sm := &StateMachine[T]{
+		name:      name,
+		states:    make(map[T]*State[T]),
+		precision: precision,
+		ticker:    time.NewTicker(precision),
+		quit:      make(chan struct{}),
+		stopped:   make(chan struct{}),
+		trace:     false,
+	}
+
+	sm.current.Store("")
+
+	return sm
+}
+
 // GetState returns the current state.
-func (sm *StateMachine) GetState() string {
+func (sm *StateMachine[T]) GetState() T {
 	//return sm.current
-	return sm.current.Load().(string)
+	return sm.current.Load()
 }
 
 // EnableStateTrace enables or disables the tracing of internal flow.
 // It's disabled by default.
-func (sm *StateMachine) EnableStateTrace(on bool) {
+func (sm *StateMachine[T]) EnableStateTrace(on bool) {
 	sm.trace = on
 }
 
 // MoveToState moves the current state to the vien one
-func (sm *StateMachine) MoveToState(s string) bool {
+func (sm *StateMachine[T]) MoveToState(s T) bool {
 	if sm.GetState() == s {
 		log.Tracef("state machine [%s] is already in state %s", sm.name, sm.GetState())
 		return true
@@ -125,8 +126,8 @@ func (sm *StateMachine) MoveToState(s string) bool {
 // The old is replaced if a state with the same name exists.
 //
 //	NOTE: This method is not goroutine-safe, call it when initialization only.
-func (sm *StateMachine) RegisterState(s *State) bool {
-	if s == nil || len(s.Name) == 0 {
+func (sm *StateMachine[T]) RegisterState(s *State[T]) bool {
+	if s == nil {
 		log.Errorf("state machine [%s] reg invalid state, ignored", sm.name)
 		return false
 	}
@@ -140,15 +141,29 @@ func (sm *StateMachine) RegisterState(s *State) bool {
 	return true
 }
 
-// RegisterStates registers a slice of states to the machine.
+// RegisterStates registers a slice of states, which contains at least
+// two elements, to the state machine.
+//
+// The starting state and stopping state are set to the first
+// and last element of the slice separately.
+//
+// The State.Id field is set according to the slice suffix starting from 0.
 //
 //	NOTE: This method is not goroutine-safe, call it when initialization only.
-func (sm *StateMachine) RegisterStates(ss []*State) bool {
+func (sm *StateMachine[T]) RegisterStates(ss []*State[T]) bool {
+	if len(ss) <= 1 {
+		log.Errorln("at least two states are needed")
+		return false
+	}
+
 	for _, s := range ss {
 		if !sm.RegisterState(s) {
 			return false
 		}
 	}
+
+	sm.SetStartingState(ss[0].Name)
+	sm.SetStartingState(ss[1].Name)
 
 	return true
 }
@@ -158,10 +173,10 @@ func (sm *StateMachine) RegisterStates(ss []*State) bool {
 // for the given name, or true is returned.
 //
 //	NOTE: This method is not goroutine-safe, call it when initialization only.
-func (sm *StateMachine) SetStartingState(state string) bool {
+func (sm *StateMachine[T]) SetStartingState(state T) bool {
 	_, ok := sm.states[state]
 	if !ok {
-		log.Errorf("given starting state %s is not registered", state)
+		log.Errorf("given starting state %v is not registered", state)
 		return false
 	}
 
@@ -174,10 +189,10 @@ func (sm *StateMachine) SetStartingState(state string) bool {
 // for the given name, or true is returned.
 //
 //	NOTE: This method is not goroutine-safe, call it when initialization only.
-func (sm *StateMachine) SetStoppingState(state string) bool {
+func (sm *StateMachine[T]) SetStoppingState(state T) bool {
 	_, ok := sm.states[state]
 	if !ok {
-		log.Errorf("given stopping state %s is not registered", state)
+		log.Errorf("given stopping state %v is not registered", state)
 		return false
 	}
 
@@ -186,18 +201,18 @@ func (sm *StateMachine) SetStoppingState(state string) bool {
 }
 
 // Startup starts running of the machine.
-func (sm *StateMachine) Startup() bool {
+func (sm *StateMachine[T]) Startup() bool {
 	if len(sm.states) == 0 {
 		log.Errorf("state machine [%s] has no states registered, cannot startup", sm.name)
 		return false
 	}
 
-	if sm.starting == "" {
+	if box.IsZero(sm.starting) {
 		log.Errorf("state machine [%s] has no starting state", sm.name)
 		return false
 	}
 
-	if sm.GetState() == "" {
+	if box.IsZero(sm.GetState()) {
 		sm.MoveToState(sm.starting)
 	}
 
@@ -209,10 +224,10 @@ func (sm *StateMachine) Startup() bool {
 
 // Shutdown stops the internal loop and wait
 // until the stopping state action returns.
-func (sm *StateMachine) Shutdown() {
+func (sm *StateMachine[T]) Shutdown() {
 	log.Infof("state machine [%s] is exiting", sm.name)
 
-	if len(sm.stopping) != 0 {
+	if !box.IsZero(sm.stopping) {
 		sm.MoveToState(sm.stopping)
 		<-sm.stopped
 		//log.Infof("state machine [%s] loop quit", sm.name)
@@ -231,33 +246,33 @@ func (sm *StateMachine) Shutdown() {
 // Pause pauses the internal timer tick loop.
 //
 //	NOTE: Not goroutine-safe.
-func (sm *StateMachine) Pause() {
+func (sm *StateMachine[T]) Pause() {
 	sm.ticker.Stop()
 }
 
 // Resume resumes the internal timer tick loop.
 //
 //	NOTE: Not goroutine-safe.
-func (sm *StateMachine) Resume() {
+func (sm *StateMachine[T]) Resume() {
 	sm.ticker.Reset(sm.precision)
 }
 
 // SaveState saves the current state for restore.
 //
 //	NOTE: Not goroutine-safe.
-func (sm *StateMachine) SaveState() {
+func (sm *StateMachine[T]) SaveState() {
 	sm.saved = sm.GetState()
 }
 
 // RestoreState moves to the latest saved state.
 //
 //	NOTE: Not goroutine-safe.
-func (sm *StateMachine) RestoreState() {
+func (sm *StateMachine[T]) RestoreState() {
 	sm.MoveToState(sm.saved)
 }
 
 // triggers execution of the action defined in current state.
-func (sm *StateMachine) trigger() {
+func (sm *StateMachine[T]) trigger() {
 	//sm.mutex.RLock()
 	//defer sm.mutex.RUnlock()
 
@@ -265,7 +280,7 @@ func (sm *StateMachine) trigger() {
 	state.trigger()
 }
 
-func (sm *StateMachine) loop() {
+func (sm *StateMachine[T]) loop() {
 	for {
 		select {
 		case <-sm.quit:
