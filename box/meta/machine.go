@@ -2,7 +2,6 @@ package meta
 
 import (
 	log "github.com/sirupsen/logrus"
-	"github.com/zourva/pareto/box"
 	"sync/atomic"
 	"time"
 )
@@ -27,16 +26,16 @@ func (s *State[T]) trigger() {
 		if s.Action != nil {
 			if s.tickCnt%5 == 0 {
 				if s.machine.trace {
-					log.Debugf("state machine [%s] trigger action %s", s.machine.name, s.Name)
+					log.Debugf("state machine [%s] trigger action %v", s.machine.name, s.Name)
 				}
 				//else {
-				//	log.Tracef("state machine [%s] trigger action %s", s.machine.name, s.Name)
+				//	log.Tracef("state machine [%s] trigger action %v", s.machine.name, s.Name)
 				//}
 			}
 
 			s.Action(s.Args)
 
-			if !box.IsZero(s.machine.stopping) && s.Name == s.machine.stopping {
+			if /*!box.IsZero(s.machine.stopping) && */ s.Name == s.machine.stopping {
 				close(s.machine.stopped)
 				//s.machine.stopped = nil
 				log.Debugf("state machine [%s] stop acknowledged", s.machine.name)
@@ -54,9 +53,8 @@ type StateMachine[T string | int32] struct {
 	stopping T // name of stopping state
 	saved    T // save state for later restore
 
-	//current  string       // active state
-	//mutex    sync.RWMutex // mutex for active state
-	current atomic.Value
+	// active state
+	current atomic.Pointer[T]
 
 	ticker    *time.Ticker
 	precision time.Duration
@@ -78,15 +76,14 @@ func NewStateMachine[T string | int32](name string, precision time.Duration) *St
 		trace:     false,
 	}
 
-	sm.current.Store("")
+	sm.current.Store(new(T))
 
 	return sm
 }
 
 // GetState returns the current state.
 func (sm *StateMachine[T]) GetState() T {
-	//return sm.current
-	return sm.current.Load()
+	return *sm.current.Load()
 }
 
 // EnableStateTrace enables or disables the tracing of internal flow.
@@ -98,26 +95,27 @@ func (sm *StateMachine[T]) EnableStateTrace(on bool) {
 // MoveToState moves the current state to the vien one
 func (sm *StateMachine[T]) MoveToState(s T) bool {
 	if sm.GetState() == s {
-		log.Tracef("state machine [%s] is already in state %s", sm.name, sm.GetState())
+		log.Tracef("state machine [%s] is already in state %v", sm.name, sm.GetState())
 		return true
 	}
 
-	if _, exist := sm.states[s]; !exist {
-		log.Errorf("state machine [%s] state %s not found", sm.name, s)
+	state, exist := sm.states[s]
+	if !exist {
+		log.Errorf("state machine [%s] state %v not found", sm.name, s)
 		return false
 	}
 
 	if sm.trace {
-		log.Debugf("state machine [%s] move state from %s to %s", sm.name, sm.GetState(), s)
+		log.Debugf("state machine [%s] move state from %v to %v", sm.name, sm.GetState(), s)
 	}
 	//else {
-	//	log.Tracef("state machine [%s] move state from %s to %s", sm.name, sm.current, s)
+	//	log.Tracef("state machine [%s] move state from %v to %v", sm.name, sm.current, s)
 	//}
 
 	//sm.mutex.Lock()
 	//defer sm.mutex.Unlock()
 	//sm.current = s
-	sm.current.Store(s)
+	sm.current.Store(&state.Name)
 
 	return true
 }
@@ -136,7 +134,7 @@ func (sm *StateMachine[T]) RegisterState(s *State[T]) bool {
 	s.machine = sm
 	sm.states[s.Name] = s
 
-	log.Debugf("state machine [%s] saves state %s", sm.name, s.Name)
+	log.Debugf("state machine [%s] register state %v", sm.name, s.Name)
 
 	return true
 }
@@ -152,7 +150,7 @@ func (sm *StateMachine[T]) RegisterState(s *State[T]) bool {
 //	NOTE: This method is not goroutine-safe, call it when initialization only.
 func (sm *StateMachine[T]) RegisterStates(ss []*State[T]) bool {
 	if len(ss) <= 1 {
-		log.Errorln("at least two states are needed")
+		log.Errorf("state machine [%s] at least two states are needed", sm.name)
 		return false
 	}
 
@@ -163,7 +161,7 @@ func (sm *StateMachine[T]) RegisterStates(ss []*State[T]) bool {
 	}
 
 	sm.SetStartingState(ss[0].Name)
-	sm.SetStartingState(ss[1].Name)
+	sm.SetStoppingState(ss[len(ss)-1].Name)
 
 	return true
 }
@@ -207,14 +205,16 @@ func (sm *StateMachine[T]) Startup() bool {
 		return false
 	}
 
-	if box.IsZero(sm.starting) {
-		log.Errorf("state machine [%s] has no starting state", sm.name)
-		return false
-	}
+	//if box.IsZero(sm.starting) {
+	//	log.Errorf("state machine [%s] has no starting state", sm.name)
+	//	return false
+	//}
+	//
+	//if box.IsZero(sm.GetState()) {
+	//	sm.MoveToState(sm.starting)
+	//}
 
-	if box.IsZero(sm.GetState()) {
-		sm.MoveToState(sm.starting)
-	}
+	sm.MoveToState(sm.starting)
 
 	go sm.loop()
 	log.Infof("state machine [%s] started", sm.name)
@@ -227,11 +227,11 @@ func (sm *StateMachine[T]) Startup() bool {
 func (sm *StateMachine[T]) Shutdown() {
 	log.Infof("state machine [%s] is exiting", sm.name)
 
-	if !box.IsZero(sm.stopping) {
-		sm.MoveToState(sm.stopping)
-		<-sm.stopped
-		//log.Infof("state machine [%s] loop quit", sm.name)
-	}
+	//if !box.IsZero(sm.stopping) {
+	sm.MoveToState(sm.stopping)
+	<-sm.stopped
+	//log.Infof("state machine [%s] loop quit", sm.name)
+	//}
 
 	close(sm.quit)
 
