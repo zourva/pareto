@@ -232,7 +232,7 @@ func (s *RegistryManager) handleStatus(data []byte) {
 func (s *RegistryManager) checkTimeout() {
 	s.services.Range(func(key, value any) bool {
 		service := value.(*registry)
-		if service.timeout() {
+		if service.state != Offline && service.timeout() {
 			//force to offline and notify watched
 			service.offline()
 			s.notifyWatched(service, &Status{
