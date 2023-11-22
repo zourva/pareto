@@ -239,7 +239,7 @@ func Validate(p Pack) error {
 
 func validateName(name string) error {
 	l := name[0]
-	if (l == '-') || (l == ':') || (l == '.') || (l == '/') || (l == '_') {
+	if (l == '-') || (l == ':') || (l == '.') || (l == '_') {
 		return ErrBadChar
 	}
 	for _, l := range name {
