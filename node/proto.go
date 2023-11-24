@@ -6,7 +6,9 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/vmihailenco/msgpack/v5"
 	"github.com/zourva/pareto/box"
+	"github.com/zourva/pareto/endec"
 	"github.com/zourva/pareto/res"
+	"github.com/zourva/pareto/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -48,7 +50,7 @@ func (a *AgentProto) doSignUp() bool {
 	rsp, err := a.lower.SignUp(context.Background(), &SignUpReq{
 		Alg:       AES,
 		Hid:       id,
-		Key:       box.Base64(key),
+		Key:       endec.Base64(key),
 		Timestamp: timestamp,
 	})
 
@@ -244,7 +246,7 @@ func (s *ServerProto) SignUp(ctx context.Context, req *SignUpReq) (*SignUpRsp, e
 	}
 
 	// for new client
-	id := box.UUID()
+	id := uuid.UUID()
 	expire := uint64(time.Now().Unix() + 7*24*3600)
 
 	// duplicate SignUp
@@ -274,7 +276,7 @@ func (s *ServerProto) SignUp(ctx context.Context, req *SignUpReq) (*SignUpRsp, e
 	return &SignUpRsp{
 		Alg:    AES,
 		Id:     id,
-		Key:    box.Base64(serverKey),
+		Key:    endec.Base64(serverKey),
 		Expire: expire,
 	}, nil
 }

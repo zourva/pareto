@@ -1,4 +1,4 @@
-package box
+package endec
 
 import "encoding/base64"
 
