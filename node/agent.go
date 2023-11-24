@@ -87,7 +87,7 @@ func WithCallbacks(cbs AgentSideHooks) AgentOption {
 
 // Agent models node of the terminal side.
 type Agent struct {
-	*meta.StateMachine
+	*meta.StateMachine[string]
 	//*service.MetaService
 	options   agentOptions
 	configMgr AgentConfManager
@@ -110,7 +110,7 @@ func NewAgent(endpoint string, opts ...AgentOption) *Agent {
 	}
 
 	c := &Agent{
-		StateMachine: meta.NewStateMachine(agentStateMachine, time.Second),
+		StateMachine: meta.NewStateMachine[string](agentStateMachine, time.Second),
 		//MetaService: service.NewMetaService(&service.Config{
 		//	Name: agentStateMachine,
 		//	Messager: ipc.NewMessager(&ipc.MessagerConf{
@@ -128,7 +128,7 @@ func NewAgent(endpoint string, opts ...AgentOption) *Agent {
 		opt(c)
 	}
 
-	c.RegisterStates([]*meta.State{
+	c.RegisterStates([]*meta.State[string]{
 		{Name: authenticating, Action: c.onAuthenticating},
 		{Name: maintaining, Action: c.onMaintaining},
 		{Name: servicing, Action: c.onServicing},

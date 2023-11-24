@@ -204,3 +204,7 @@ func (s *Server) HandleConn(ctx context.Context, connStats stats.ConnStats) {
 
 	return
 }
+
+func (s *Server) Notify(join string, data []byte) error {
+	return nil
+}
