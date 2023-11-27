@@ -281,6 +281,9 @@ func (sm *StateMachine[T]) trigger() {
 }
 
 func (sm *StateMachine[T]) loop() {
+	// Trigger immediately once.
+	sm.trigger()
+
 	for {
 		select {
 		case <-sm.quit:
@@ -289,6 +292,5 @@ func (sm *StateMachine[T]) loop() {
 		case <-sm.ticker.C:
 			sm.trigger()
 		}
-
 	}
 }
