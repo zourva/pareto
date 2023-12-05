@@ -2,6 +2,11 @@ package box
 
 import "time"
 
+// TimeNowSs returns current timestamp in seconds.
+func TimeNowSs() uint64 {
+	return uint64(time.Now().Unix())
+}
+
 // TimeNowMs returns current timestamp in milliseconds.
 func TimeNowMs() uint64 {
 	return TimeNowUs() / 1000

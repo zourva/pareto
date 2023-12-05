@@ -5,7 +5,7 @@ import (
 	"errors"
 	"github.com/eclipse/paho.golang/paho"
 	log "github.com/sirupsen/logrus"
-	"github.com/zourva/pareto/box"
+	"github.com/zourva/pareto/conv"
 	"net"
 )
 
@@ -76,12 +76,12 @@ func (c *MQTTClient) Connect(connMsg *paho.Connect) error {
 		if ca.Properties != nil {
 			log.Errorf("mqtt client: failed to connect to %s : %d - %s",
 				c.endpoint, ca.ReasonCode, ca.Properties.ReasonString)
-			return errors.New("mqtt connect failure: " + box.Itoa(int(ca.ReasonCode)) + ca.Properties.ReasonString)
+			return errors.New("mqtt connect failure: " + conv.Itoa(int(ca.ReasonCode)) + ca.Properties.ReasonString)
 		}
 
 		log.Errorf("mqtt client: failed to connect to %s : %d",
 			c.endpoint, ca.ReasonCode)
-		return errors.New("mqtt connect failure: " + box.Itoa(int(ca.ReasonCode)))
+		return errors.New("mqtt connect failure: " + conv.Itoa(int(ca.ReasonCode)))
 	}
 
 	c.addr = c.Client.Conn.LocalAddr().String()

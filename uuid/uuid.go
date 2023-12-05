@@ -1,4 +1,4 @@
-package box
+package uuid
 
 import "github.com/pborman/uuid"
 
