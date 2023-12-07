@@ -75,8 +75,13 @@ type Loop interface {
 	// Stopped returns true if loop is stopped.
 	Stopped() bool
 
-	// Stop stops the internal timer, close channels and clear all states.
+	// Stop acts the same as Quit except that
+	// it waits until the loop quits.
 	Stop()
+
+	// Quit stops the internal timer,
+	// closes channels, clears all states.
+	Quit()
 }
 
 type LoopConf = LoopConfig
@@ -104,6 +109,7 @@ const (
 	initialized uint32 = iota
 	configured
 	running
+	stopping
 	stopped
 )
 
@@ -175,8 +181,21 @@ func (l *TimeWheelLoop) Stopped() bool {
 	return l.state == stopped
 }
 
+func (l *TimeWheelLoop) Quit() {
+	l.stop()
+	l.state = stopped
+}
+
 // Stop stops the internal timer, close channels and clear all states.
 func (l *TimeWheelLoop) Stop() {
+	l.stop()
+
+	l.state = stopping
+	<-l.wait
+	l.state = stopped
+}
+
+func (l *TimeWheelLoop) stop() {
 	if l.state < running {
 		return
 	}
@@ -187,10 +206,6 @@ func (l *TimeWheelLoop) Stop() {
 
 	close(l.quit)
 	l.tick.Stop()
-
-	<-l.wait
-
-	l.state = stopped
 }
 
 func (l *TimeWheelLoop) runHook(pos string, hook func() error) bool {
