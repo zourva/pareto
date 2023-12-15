@@ -8,10 +8,19 @@ import (
 	"os"
 )
 
+// LoadJsonConfig loads config object of a JSON file
+// and deserialize to the given object.
+// Return nil or any error if happened during loading and unmarshal.
 func LoadJsonConfig(file string, obj any) error {
-	if ok, err := box.PathExists(file); err != nil || !ok {
+	ok, err := box.PathExists(file)
+	if err != nil {
 		log.Errorf("config file(%s) not available:%v", file, err)
 		return err
+	}
+
+	if !ok {
+		log.Errorf("config file(%s) not exist", file)
+		return os.ErrNotExist
 	}
 
 	buf, err := os.ReadFile(file)
