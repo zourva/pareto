@@ -193,9 +193,9 @@ func (s *confManager) SaveNode(n *Node) error {
 
 // Load loads conf from config db file
 func (s *confManager) load() bool {
-	_, err := box.PathExists(s.path)
-	if err != nil {
-		log.Errorln("check path existence failed")
+	ok, err := box.PathExists(s.path)
+	if !ok {
+		log.Errorln("check path existence failed", err)
 		return false
 	}
 
