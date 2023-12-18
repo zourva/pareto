@@ -8,8 +8,12 @@ import (
 	"strings"
 )
 
-// PathExists returns true if path exist and false otherwise with nil error
-//or error and false when error occurred
+// PathExists returns true if path exist,
+// false with nil error if path doesn't exist,
+// or the error occurred when check the existence.
+// Note that existence is not determined if any error other
+// than NotExist occurred, so the returned false must not be
+// interpreted as NotExist.
 func PathExists(path string) (bool, error) {
 	_, err := os.Stat(path)
 

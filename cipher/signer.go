@@ -1,7 +1,6 @@
 package cipher
 
 import (
-	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -14,13 +13,21 @@ import (
 	"os"
 )
 
+type EncodeType = int
+
+const (
+	EncodeDER EncodeType = iota
+	EncodePEM
+)
+
 // Descriptor defines
 type Descriptor struct {
 	Name string            //file name
 	Info *x509.Certificate //basic input info
 
-	CertDER  []byte
-	KeyPKCS8 []byte
+	EncodeType  EncodeType
+	CertEncoded []byte
+	KeyEncoded  []byte
 }
 
 type SelfSigner struct {
@@ -30,8 +37,10 @@ type SelfSigner struct {
 
 	caCertificate *x509.Certificate // ca certificate
 	caPrivateKey  *ecdsa.PrivateKey // ca private key
-	caCertDER     []byte            // DER-encoded ca certificate buf, i.e. raw cert
-	caKeyPKCS8    []byte            // DER-encoded PKCS8 ca private key buf, i.e. raw key
+
+	// used only when generate a ca cert-key pair
+	caCertPEM []byte // PEM-encoded ca certificate buf
+	caKeyPEM  []byte // PEM-encoded PKCS8 ca private key buf
 }
 
 func NewSelfSigner() *SelfSigner {
@@ -54,6 +63,51 @@ func (g *SelfSigner) UseRandProvider(rand io.Reader) {
 
 func (g *SelfSigner) UseSerialNumberGenerator(gen SerialNumberGenerator) {
 	g.snGen = gen
+}
+
+// LoadCAFromFiles loads certificate and private key data from
+// the given file path. Note that both are required to be PEM-encoded.
+func (g *SelfSigner) LoadCAFromFiles(certFile, keyFile string) error {
+	keyBytes, err := os.ReadFile(keyFile)
+	if err != nil {
+		return err
+	}
+
+	certBytes, err := os.ReadFile(certFile)
+	if err != nil {
+		return err
+	}
+
+	return g.LoadCAFromBuf(certBytes, keyBytes)
+}
+
+// LoadCAFromBuf loads certificate and private key data from
+// the given slices. Note that both are required to be PEM-encoded.
+func (g *SelfSigner) LoadCAFromBuf(certPEM, keyPEM []byte) error {
+	tlsCert, err := LoadKeyAndCertificate(keyPEM, certPEM)
+	if err != nil {
+		return err
+	}
+
+	cert, err := x509.ParseCertificate(tlsCert.Certificate[0])
+	if err != nil {
+		return err
+	}
+
+	g.caCertificate = cert
+	g.caPrivateKey = tlsCert.PrivateKey.(*ecdsa.PrivateKey)
+
+	return nil
+}
+
+// CACert returns the PEM-encoded ca certificate data.
+func (g *SelfSigner) CACert() []byte {
+	return g.caCertPEM
+}
+
+// CAPrivateKey returns the PEM-encoded ca private key data.
+func (g *SelfSigner) CAPrivateKey() []byte {
+	return g.caKeyPEM
 }
 
 // GenerateCA creates a deterministic certificate authority.
@@ -79,7 +133,7 @@ func (g *SelfSigner) GenerateCA(info *x509.Certificate) error {
 	}
 
 	// generate serial number
-	serialNumber, err := g.Generate()
+	serialNumber, err := g.genCASerialNumber()
 	if err != nil {
 		return err
 	}
@@ -117,14 +171,46 @@ func (g *SelfSigner) GenerateCA(info *x509.Certificate) error {
 		return err
 	}
 
-	// export DER-formatted cert and private key
-	g.caCertDER = derBytes
-	g.caKeyPKCS8 = privateKeyBytes
+	// export PEM-formatted cert and private key
+	g.caCertPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
+	g.caKeyPEM = pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: privateKeyBytes})
 
 	g.caCertificate = ca
 	g.caPrivateKey = privateKey
 
 	return nil
+}
+
+// CreateSelfSignedCertificates creates and signs certificates according to the
+// given descriptors and returns number of certificates successfully generated.
+func (g *SelfSigner) CreateSelfSignedCertificates(descriptors []*Descriptor) (error, int) {
+	count := 0
+	for _, desc := range descriptors {
+		if len(desc.Name) == 0 {
+			return errors.New("name is mandatory"), 0
+		}
+
+		if desc.Info == nil ||
+			desc.Info.NotBefore.IsZero() ||
+			desc.Info.NotAfter.IsZero() ||
+			len(desc.Info.Subject.String()) == 0 {
+			return errors.New("info NotBefore/NotAfter/Subject is mandatory"), 0
+		}
+
+		cert, key, err := g.CreateSelfSigned(desc.Info)
+		if err != nil {
+			return err, count
+		}
+
+		err, desc.CertEncoded, desc.KeyEncoded = g.encode(desc.EncodeType, cert, key)
+		if err != nil {
+			return err, count
+		}
+
+		count++
+	}
+
+	return nil, count
 }
 
 // CreateSelfSigned creates a certificate based on the given input.
@@ -137,6 +223,11 @@ func (g *SelfSigner) GenerateCA(info *x509.Certificate) error {
 //		EmailAddresses - optional
 //	 DNSNames - optional
 func (g *SelfSigner) CreateSelfSigned(info *x509.Certificate) (cert, key []byte, err error) {
+	if g.caCertificate == nil || g.caPrivateKey == nil {
+		log.Errorln("certificate and key of ca are not initialized yet")
+		return nil, nil, errors.New("ca certificate and key not valid")
+	}
+
 	pk, err := g.genPrivateKey()
 	if err != nil {
 		return nil, nil, err
@@ -179,36 +270,20 @@ func (g *SelfSigner) CreateSelfSigned(info *x509.Certificate) (cert, key []byte,
 	return
 }
 
-// CreateSignCertificates creates and signs certificates according to the
-// given descriptors and returns number of certificates successfully generated.
-func (g *SelfSigner) CreateSignCertificates(descriptors []*Descriptor) (error, int) {
-	count := 0
-	for _, desc := range descriptors {
-		if len(desc.Name) == 0 {
-			return errors.New("name is mandatory"), 0
-		}
-
-		if desc.Info == nil ||
-			desc.Info.NotBefore.IsZero() ||
-			desc.Info.NotAfter.IsZero() ||
-			len(desc.Info.Subject.String()) == 0 {
-			return errors.New("info NotBefore/NotAfter/Subject is mandatory"), 0
-		}
-
-		cert, key, err := g.CreateSelfSigned(desc.Info)
-		if err != nil {
-			return err, count
-		}
-
-		count++
-		desc.CertDER = cert
-		desc.KeyPKCS8 = key
+func (g *SelfSigner) encode(t EncodeType, certDER, keyDER []byte) (err error, encCert []byte, encKey []byte) {
+	switch t {
+	case EncodeDER:
+		return nil, certDER, keyDER
+	case EncodePEM:
+		encCert = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+		encKey = pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
+		return nil, encCert, encKey
+	default:
+		return errors.New("not supported encoding"), nil, nil
 	}
-
-	return nil, count
 }
 
-func (g *SelfSigner) Generate() (*big.Int, error) {
+func (g *SelfSigner) genCASerialNumber() (*big.Int, error) {
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	sn, err := rand.Int(rand.Reader, serialNumberLimit)
 
@@ -230,31 +305,30 @@ func (g *SelfSigner) genPrivateKey() (*ecdsa.PrivateKey, error) {
 	return key, nil
 }
 
+// writePemFilePair write a .crt and .key file separately for certificate
+// and private key buffer.
 func (g *SelfSigner) writePemFilePair(file string, cert, key []byte) error {
-	certPem := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert})
-	keyPem := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: key})
-
-	//write pem file for cert, including publick key
-	f, err := os.Create(file + "-cert.pem")
+	//write pem file for cert, including public key
+	f, err := os.Create(file + ".crt")
 	if err != nil {
 		log.Errorln("create cert pem file failed:", err)
 		return err
 	}
 
-	_, err = f.Write(certPem)
+	_, err = f.Write(cert)
 	if err != nil {
 		log.Errorln("write pem file failed:", err)
 		return err
 	}
 
 	//write pem file for private key
-	f, err = os.Create(file + "-key.pem")
+	f, err = os.Create(file + ".key")
 	if err != nil {
 		log.Errorln("create key pem file failed:", err)
 		return err
 	}
 
-	_, err = f.Write(keyPem)
+	_, err = f.Write(key)
 	if err != nil {
 		log.Errorln("write pem file failed:", err)
 		return err
@@ -264,28 +338,16 @@ func (g *SelfSigner) writePemFilePair(file string, cert, key []byte) error {
 }
 
 func (g *SelfSigner) WriteCACertFiles(file string) error {
-	return g.writePemFilePair(file, g.caCertDER, g.caKeyPKCS8)
+	return g.writePemFilePair(file, g.caCertPEM, g.caKeyPEM)
 }
 
 func (g *SelfSigner) WriteFiles(descriptors []*Descriptor) error {
 	for _, desc := range descriptors {
-		err := g.writePemFilePair(desc.Name, desc.CertDER, desc.KeyPKCS8)
+		err := g.writePemFilePair(desc.Name, desc.CertEncoded, desc.KeyEncoded)
 		if err != nil {
 			return err
 		}
 	}
 
 	return nil
-}
-
-func sequentialBytes(n int) io.Reader {
-	sequence := make([]byte, n)
-	for i := 0; i < n; i++ {
-		sequence[i] = byte(i)
-	}
-	return bytes.NewReader(sequence)
-}
-
-func randProvider() io.Reader {
-	return rand.Reader
 }
