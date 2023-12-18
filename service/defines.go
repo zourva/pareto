@@ -33,9 +33,8 @@ type State int
 const (
 	Offline   State = iota // stopping -> offline
 	Starting               // offline -> starting
-	Servicing              // starting/paused -> servicing
-	Paused                 // offline/starting/servicing -> paused
-	Stopping               // starting/servicing/paused -> stopping
+	Servicing              // starting -> servicing
+	Stopping               // starting/servicing -> stopping
 	Stopped                // stopping -> stopped
 )
 
@@ -45,8 +44,6 @@ func (s State) String() string {
 		return "servicing"
 	case Starting:
 		return "starting"
-	case Paused:
-		return "paused"
 	case Stopping:
 		return "stopping"
 	case Offline:
