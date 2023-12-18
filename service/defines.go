@@ -31,19 +31,22 @@ const (
 type State int
 
 const (
-	Offline   State = iota //stopping -> offline
-	Starting               //offline -> starting
-	Servicing              //starting -> servicing
-	Stopping               //starting/online/paused -> stopped
-	Stopped                //stopping -> stopped
+	Offline   State = iota // stopping -> offline
+	Starting               // offline -> starting
+	Servicing              // starting/paused -> servicing
+	Paused                 // offline/starting/servicing -> paused
+	Stopping               // starting/servicing/paused -> stopping
+	Stopped                // stopping -> stopped
 )
 
-func StateString(state State) string {
-	switch state {
+func (s State) String() string {
+	switch s {
 	case Servicing:
 		return "servicing"
 	case Starting:
 		return "starting"
+	case Paused:
+		return "paused"
 	case Stopping:
 		return "stopping"
 	case Offline:
