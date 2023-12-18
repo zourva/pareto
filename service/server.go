@@ -170,7 +170,7 @@ func (s *RegistryManager) register(status *Status) {
 		updateTime: t,
 	})
 
-	log.Infof("service %s registered, state = %s", status.Name, StateString(status.State))
+	log.Infof("service %s registered, state = %s", status.Name, status.State.String())
 }
 
 func (s *RegistryManager) update(reg *registry, status *Status) {
@@ -211,7 +211,7 @@ func (s *RegistryManager) unregister(name string) {
 func (s *RegistryManager) notifyWatched(reg *registry, status *Status) {
 	// TODO:
 	log.Infof("service %s state changed(%s -> %s)",
-		reg.name, StateString(reg.state), StateString(status.State))
+		reg.name, reg.state, status.State)
 }
 
 func (s *RegistryManager) handleStatus(data []byte) {
