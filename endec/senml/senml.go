@@ -110,6 +110,15 @@ func Decode(msg []byte, format Format) (Pack, error) {
 	return p, Validate(p)
 }
 
+func DecodeAndNormalize(msg []byte, format Format) (Pack, error) {
+	p, err := Decode(msg, format)
+	if err != nil {
+		return p, err
+	}
+
+	return Normalize(p)
+}
+
 // Encode takes a SenML Pack and encodes it using the given format.
 func Encode(p Pack, format Format) ([]byte, error) {
 	switch format {
