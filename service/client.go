@@ -7,11 +7,11 @@ import (
 	"github.com/zourva/pareto/ipc"
 )
 
-// Registerer acts as a registry delegator,
+// Registrar acts as a registry delegator,
 // helping service instances
 // interacting with service server.
-// Registerer implements s1 interface.
-type Registerer struct {
+// Registrar implements s1 interface.
+type Registrar struct {
 	//ref to the messager of the service
 	messager *ipc.Messager
 
@@ -21,15 +21,15 @@ type Registerer struct {
 	exporter meta.Loop
 }
 
-// EnableStatusExport exports status of the service periodically.
-func (r *Registerer) EnableStatusExport() {
+// EnableStatusReport exports status of the service periodically.
+func (r *Registrar) EnableStatusReport() {
 	if r.exporter != nil {
 		log.Warnln("already enabled status export")
 		return
 	}
 
 	r.exporter = meta.NewLoop("registerer", meta.LoopConfig{
-		Tick: r.service.Config().Status.Interval * 1000,
+		Tick: r.service.StatusConf().Interval * 1000,
 	})
 
 	// always report start
@@ -44,7 +44,7 @@ func (r *Registerer) EnableStatusExport() {
 
 }
 
-func (r *Registerer) DisableStatusExport() {
+func (r *Registrar) DisableStatusExport() {
 	// always report stop
 	_ = r.report()
 
@@ -56,7 +56,7 @@ func (r *Registerer) DisableStatusExport() {
 // periodically when the registration succeeded.
 //
 // Returns false when any error occurs, and true otherwise.
-func (r *Registerer) Register(s Service) bool {
+func (r *Registrar) Register(s Service) bool {
 	r.service = s
 
 	_, err := msgpack.Marshal(
@@ -73,11 +73,11 @@ func (r *Registerer) Register(s Service) bool {
 }
 
 // Unregister unregisters the service from the registry server.
-func (r *Registerer) Unregister() {
+func (r *Registrar) Unregister() {
 	//r.messager.CallV2("/ew1/service/deregister", []byte(s.Name()), time.Second)
 }
 
-func (r *Registerer) report() error {
+func (r *Registrar) report() error {
 	err := r.messager.Publish(EndpointServiceStatus, r.service.MarshalStatus())
 	if err != nil {
 		log.Warnf("export status for service %s failed: %v", r.service.Name(), err)
@@ -88,8 +88,8 @@ func (r *Registerer) report() error {
 
 // NewRegisterer creates a new registerer with the
 // given messager as its communication channel.
-func NewRegisterer(m *ipc.Messager) *Registerer {
-	r := &Registerer{
+func NewRegisterer(m *ipc.Messager) *Registrar {
+	r := &Registrar{
 		messager: m,
 	}
 	log.Infof("registerer is created for messager %p", m)

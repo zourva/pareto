@@ -249,9 +249,9 @@ func (s *RegistryManager) checkTimeout() {
 }
 
 // NewRegistryManager creates a new service server.
-func NewRegistryManager(broker string) *RegistryManager {
+func NewRegistryManager(registry string) *RegistryManager {
 	s := &RegistryManager{
-		MetaService: NewGenericMetaService("registry", broker),
+		MetaService: NewMetaService(&Descriptor{Name: "registry", Registry: registry}),
 		duration:    5 * time.Second,
 	}
 

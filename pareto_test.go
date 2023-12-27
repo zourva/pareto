@@ -91,7 +91,7 @@ func TestWithLoggerProvider(t *testing.T) {
 		})
 	}))
 
-	assert.NotNil(t, bot.logger)
+	assert.NotNil(t, p.logger)
 }
 
 func TestWithLoggerProvider2(t *testing.T) {

@@ -10,9 +10,11 @@ import (
 	"os"
 )
 
-type paretoKit struct {
-	workingDir *env.WorkingDir
-	logger     *logger.Logger
+// Pareto defines the context.
+type Pareto struct {
+	layout *env.WorkingDir
+	config *config.Store
+	logger *logger.Logger
 	// diagnoser  *diagnoser.Diagnoser
 	// monitor    *monitor.SysMonitor
 	// updater    *updater.OtaManager
@@ -20,15 +22,34 @@ type paretoKit struct {
 	flagParse bool
 }
 
-var bot = new(paretoKit)
+var p *Pareto
+
+func init() {
+	p = New()
+}
+
+// New create a pareto env.
+func New() *Pareto {
+	p := new(Pareto)
+
+	return p
+}
+
+func Config() *config.Store { return p.Config() }
+
+func (p *Pareto) Config() *config.Store { return p.config }
+
+func Logger() *logger.Logger { return p.Logger() }
+
+func (p *Pareto) Logger() *logger.Logger { return p.logger }
 
 // Option defines pareto initialization options.
-type Option func()
+type Option func(*Pareto)
 
 // EnableFlagParse enables or disables flag.Parse.
 func EnableFlagParse(parse bool) Option {
-	return func() {
-		bot.flagParse = parse
+	return func(p *Pareto) {
+		p.flagParse = parse
 		if parse {
 			flag.Parse()
 		}
@@ -37,35 +58,35 @@ func EnableFlagParse(parse bool) Option {
 
 // EnableProfiler enables prof.Profiler.
 func EnableProfiler() Option {
-	return func() {
-		bot.profiler = prof.NewProfiler(nil)
-		bot.profiler.Start()
+	return func(p *Pareto) {
+		p.profiler = prof.NewProfiler(nil)
+		p.profiler.Start()
 	}
 }
 
 // WithLogger allows to provide a logger config
 // as an option.
 func WithLogger(l *logger.Logger) Option {
-	return func() {
-		bot.logger = l
+	return func(p *Pareto) {
+		p.logger = l
 	}
 }
 
 // WithLoggerProvider allows to provide a logger create function
 func WithLoggerProvider(provider func() *logger.Logger) Option {
-	return func() {
+	return func(p *Pareto) {
 		l := provider()
 		if l == nil {
 			log.Fatalln("call user provided create logger function failed")
 		}
-		bot.logger = l
+		p.logger = l
 	}
 }
 
 // WithWorkingDirLayout allows to hint working dir layout.
 func WithWorkingDirLayout(wd *env.WorkingDir) Option {
-	return func() {
-		bot.workingDir = wd
+	return func(p *Pareto) {
+		p.layout = wd
 	}
 }
 
@@ -73,8 +94,8 @@ func WithWorkingDirLayout(wd *env.WorkingDir) Option {
 // it also set system level working dir, using os.Chdir, to the parent
 // directory of this executable.
 func WithWorkingDir(wd *env.WorkingDir) Option {
-	return func() {
-		bot.workingDir = wd
+	return func(p *Pareto) {
+		p.layout = wd
 		err := os.Chdir(env.GetExecFilePath() + "/../")
 		if err != nil {
 			log.Fatalln("change working dir failed:", err)
@@ -82,18 +103,24 @@ func WithWorkingDir(wd *env.WorkingDir) Option {
 	}
 }
 
+func WithConfigStore(c *config.Store) Option {
+	return func(p *Pareto) {
+		p.config = c
+	}
+}
+
 // WithJsonConfParser
 // To load the specified configuration file
-// and invoke the user function for parsing
-func WithJsonConfParser(file string, obj any, f func(obj any) error) Option {
-	return func() {
+// and invoke the normalizer function for parsing
+func WithJsonConfParser(file string, obj any, normalize func(obj any) error) Option {
+	return func(p *Pareto) {
 		err := config.LoadJsonConfig(file, obj)
 		if err != nil {
 			log.Fatalln("load config file(", file, ") failed:", err)
 		}
 
-		if f != nil {
-			err = f(obj)
+		if normalize != nil {
+			err = normalize(obj)
 			if err != nil {
 				log.Fatalln("call user provided config parse function failed", err)
 			}
@@ -101,76 +128,20 @@ func WithJsonConfParser(file string, obj any, f func(obj any) error) Option {
 	}
 }
 
-// // WithDiagnoser allows to provide a diagnoser service config
-// // as an option.
-// func WithDiagnoser(d *diagnoser.Diagnoser) Option {
-//	return func() {
-//		bot.diagnoser = d
-//	}
-// }
-
-// // WithUpdater allows to provide an updater service config
-// // as an option.
-// func WithUpdater(u *updater.OtaManager) Option {
-//	return func() {
-//		bot.updater = u
-//	}
-// }
-
-// // WithMonitor allows to provide a monitor service config
-// // as an option.
-// func WithMonitor(m *monitor.SysMonitor) Option {
-//	return func() {
-//		bot.monitor = m
-//	}
-// }
-
-// WithCli allows to provide a command line interface component config
-// as an option.
-func WithCli() Option {
-	return func() {
-	}
-}
-
 // SetupWithOpts create a pareto environment with the
 // given options.
 func SetupWithOpts(options ...Option) {
-	for _, o := range options {
-		o()
+	for _, fn := range options {
+		fn(p)
 	}
 
 	log.Infoln("setup pareto environment done")
 }
 
-// // Setup creates a default logger and working dir,
-// // enables flag.Parse
-// func Setup() {
-//	SetupWithOpts(
-//		EnableFlagParse(true),
-//		WithLogger(
-//			logger.NewLogger(&logger.Options{
-//				Verbosity:   "v",
-//				LogFileName: env.GetExecFilePath() + "/../log/out.log",
-//				MaxSize:     50,
-//				MaxAge:      7,
-//				MaxBackups:  3,
-//			}),
-//		),
-//		WithWorkingDir(
-//			env.NewWorkingDir(true,
-//				[]*env.DirInfo{
-//					{Name: "bin", Mode: 0755},
-//					{Name: "etc", Mode: 0755},
-//					{Name: "lib", Mode: 0755},
-//					{Name: "log", Mode: 0755},
-//				}),
-//		))
-// }
-
 // Teardown tears down the working space
 func Teardown() {
-	if bot.profiler != nil {
-		bot.profiler.Stop()
+	if p.profiler != nil {
+		p.profiler.Stop()
 	}
 
 	log.Infoln("teardown pareto environment done")
