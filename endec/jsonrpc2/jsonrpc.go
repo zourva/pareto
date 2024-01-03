@@ -47,6 +47,20 @@ func (r *RPCRequest) GetObject(toType any) error {
 	return nil
 }
 
+func (r *RPCRequest) String() string {
+	if r == nil {
+		return "nil"
+	}
+
+	buf := fmt.Sprintf("Version: %v, ID: %v, Method: %v", r.Version, r.ID, r.Method)
+
+	if r.Params != nil {
+		buf = fmt.Sprintf("%s, Params: %v", buf, r.Params)
+	}
+
+	return buf
+}
+
 // NewRequest creates a new RPCRequest with the given message id.
 func NewRequest(id int, method string, params ...any) *RPCRequest {
 	request := &RPCRequest{
@@ -87,6 +101,24 @@ type RPCResponse struct {
 	Version string    `json:"jsonrpc"`
 	Result  any       `json:"result,omitempty"`
 	Error   *RPCError `json:"error,omitempty"`
+}
+
+func (r *RPCResponse) String() string {
+	if r == nil {
+		return "nil"
+	}
+
+	buf := fmt.Sprintf("Version: %v, ID: %v", r.Version, r.ID)
+
+	if r.Result != nil {
+		buf = fmt.Sprintf("%s, Result: %v", buf, r.Result)
+	}
+
+	if r.Error != nil {
+		buf = fmt.Sprintf("%s, Error: %v", buf, r.Error)
+	}
+
+	return buf
 }
 
 // GetInt converts the rpc response to an int64 and returns it.
@@ -308,23 +340,25 @@ const (
 	ErrParseNotWellFormed            = 32700
 	ErrParseUnsupportedEncoding      = 32701
 	ErrParseInvalidCharacterEncoding = 32702
-	ErrServerInvalid                 = 32600
+	ErrServerInvalid                 = 32600 //server side(callee side) error
 	ErrServerMethodNotFound          = 32601
 	ErrServerInvalidParameters       = 32602
 	ErrServerInternal                = 32603
-	ErrApplicationError              = 32500
+	ErrServerInvalidMessageId        = 32604
+	ErrApplicationError              = 32500 //application side(caller side) error
 	ErrSystemError                   = 32400
 	ErrTransportError                = 32300
 )
 
 var ErrCodeString = map[int]string{
-	ErrParseNotWellFormed:            "parse error: message malformed.",
-	ErrParseUnsupportedEncoding:      "parse error: unsupported encoding.",
-	ErrParseInvalidCharacterEncoding: "parse error: invalid character for encoding.",
-	ErrServerInvalid:                 "server error: invalid rpc, not conforming to the spec.",
-	ErrServerMethodNotFound:          "server error: requested method not found.",
-	ErrServerInvalidParameters:       "server error: invalid method parameters.",
-	ErrServerInternal:                "server error: internal rpc error.",
+	ErrParseNotWellFormed:            "parse error: message malformed",
+	ErrParseUnsupportedEncoding:      "parse error: unsupported encoding",
+	ErrParseInvalidCharacterEncoding: "parse error: invalid character for encoding",
+	ErrServerInvalid:                 "server error: invalid rpc, not conforming to the spec",
+	ErrServerMethodNotFound:          "server error: requested method not found",
+	ErrServerInvalidParameters:       "server error: invalid method parameters",
+	ErrServerInternal:                "server error: internal rpc error",
+	ErrServerInvalidMessageId:        "server error: invalid message id",
 	ErrApplicationError:              "application error",
 	ErrSystemError:                   "system error",
 	ErrTransportError:                "transport error",
