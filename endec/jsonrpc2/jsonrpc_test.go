@@ -1,6 +1,7 @@
 package jsonrpc2
 
 import (
+	"github.com/stretchr/testify/assert"
 	"github.com/zourva/pareto/service"
 	"testing"
 	"time"
@@ -18,8 +19,8 @@ func (b *broker) Bind(fn func([]byte) ([]byte, error)) error {
 	return b.ExposeMethod(subject, fn)
 }
 
-func (b *broker) Call(data []byte, to time.Duration) ([]byte, error) {
-	return b.Messager().CallV2(subject, data, to)
+func (b *broker) Call(channel string, data []byte, to time.Duration) ([]byte, error) {
+	return b.Messager().CallV2(channel, data, to)
 }
 
 func newBroker() *broker {
@@ -54,9 +55,12 @@ func TestCallerCallee(t *testing.T) {
 	}
 
 	client := NewClient(bearer)
-	rsp, err := client.Invoke("method1", time.Second, &TestReq{Name: "hello"})
+	rsp, err := client.Invoke(subject, "method1", time.Second, &TestReq{Name: "hello"})
 
-	t.Log(rsp)
+	//t.Log(rsp)
+	var tr TestRsp
+	rsp.GetObject(&tr)
+	assert.Equal(t, tr.Value, "world")
 
 	service.Stop(bearer)
 }

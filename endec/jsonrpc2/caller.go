@@ -11,7 +11,7 @@ import (
 // Bearer defines underlying calling process manager
 // of JSON-RPC implementation.
 type Bearer interface {
-	Call(data []byte, to time.Duration) ([]byte, error)
+	Call(channel string, data []byte, to time.Duration) ([]byte, error)
 }
 
 // Client defines a general JSON-RPC method caller.
@@ -27,7 +27,7 @@ func (i *Client) getId() int {
 //
 //		e.g.: Invoke("test.string", 1*time.Second, "hello", "json-rpc")
 //	       Invoke("test.struct", 2*time.Second, someStruct)
-func (i *Client) Invoke(method string, timeout time.Duration, params ...any) (*RPCResponse, error) {
+func (i *Client) Invoke(channel, method string, timeout time.Duration, params ...any) (*RPCResponse, error) {
 	req := NewRequest(i.getId(), method, params...)
 
 	reqBuf, err := json.Marshal(req)
@@ -35,7 +35,7 @@ func (i *Client) Invoke(method string, timeout time.Duration, params ...any) (*R
 		return nil, err
 	}
 
-	rspBuf, err := i.bearer.Call(reqBuf, timeout)
+	rspBuf, err := i.bearer.Call(channel, reqBuf, timeout)
 	if err != nil {
 		return nil, err
 	}
