@@ -11,10 +11,19 @@ import (
 	"testing"
 )
 
-// func TestSetupDefault(t *testing.T) {
-//	Setup()
-//	Teardown()
-// }
+func TestWithConfigStore(t *testing.T) {
+	options := []Option{
+		WithConfigStoreFile("config/agent.json"),
+	}
+
+	SetupWithOpts(options...)
+
+	for _, k := range Config().AllKeys() {
+		t.Logf("%s\n", k)
+	}
+
+	Teardown()
+}
 
 func TestSetupWithOpts(t *testing.T) {
 	options := []Option{
@@ -91,7 +100,7 @@ func TestWithLoggerProvider(t *testing.T) {
 		})
 	}))
 
-	assert.NotNil(t, p.logger)
+	assert.NotNil(t, pareto.logger)
 }
 
 func TestWithLoggerProvider2(t *testing.T) {

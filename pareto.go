@@ -22,10 +22,10 @@ type Pareto struct {
 	flagParse bool
 }
 
-var p *Pareto
+var pareto *Pareto
 
 func init() {
-	p = New()
+	pareto = New()
 }
 
 // New create a pareto env.
@@ -35,11 +35,13 @@ func New() *Pareto {
 	return p
 }
 
-func Config() *config.Store { return p.Config() }
+// Config returns the default global instance of config object.
+func Config() *config.Store { return pareto.Config() }
 
 func (p *Pareto) Config() *config.Store { return p.config }
 
-func Logger() *logger.Logger { return p.Logger() }
+// Logger returns the default global instance of logger object.
+func Logger() *logger.Logger { return pareto.Logger() }
 
 func (p *Pareto) Logger() *logger.Logger { return p.logger }
 
@@ -103,9 +105,16 @@ func WithWorkingDir(wd *env.WorkingDir) Option {
 	}
 }
 
-func WithConfigStore(c *config.Store) Option {
+// WithConfigStoreFile specifies a config file to load, which will
+// overwrite the default pareto config store.
+func WithConfigStoreFile(file string, rootPaths ...string) Option {
 	return func(p *Pareto) {
-		p.config = c
+		s, err := config.NewStore(file, rootPaths...)
+		if err != nil {
+			log.Fatalf("config store load failed: %v", err)
+		}
+
+		p.config = s
 	}
 }
 
@@ -128,20 +137,20 @@ func WithJsonConfParser(file string, obj any, normalize func(obj any) error) Opt
 	}
 }
 
-// SetupWithOpts create a pareto environment with the
-// given options.
+// SetupWithOpts creates a pareto environment for an
+// app with the given options.
 func SetupWithOpts(options ...Option) {
 	for _, fn := range options {
-		fn(p)
+		fn(pareto)
 	}
 
 	log.Infoln("setup pareto environment done")
 }
 
-// Teardown tears down the working space
+// Teardown tears down the working space.
 func Teardown() {
-	if p.profiler != nil {
-		p.profiler.Stop()
+	if pareto.profiler != nil {
+		pareto.profiler.Stop()
 	}
 
 	log.Infoln("teardown pareto environment done")
