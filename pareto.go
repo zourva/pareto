@@ -4,10 +4,10 @@ import (
 	"flag"
 	log "github.com/sirupsen/logrus"
 	"github.com/zourva/pareto/box/env"
-	"github.com/zourva/pareto/box/prof"
 	"github.com/zourva/pareto/config"
 	"github.com/zourva/pareto/logger"
 	"os"
+	"strings"
 )
 
 // Pareto defines the context.
@@ -18,8 +18,15 @@ type Pareto struct {
 	// diagnoser  *diagnoser.Diagnoser
 	// monitor    *monitor.SysMonitor
 	// updater    *updater.OtaManager
-	profiler  *prof.Profiler
-	flagParse bool
+	//profiler *prof.Profiler
+
+	disableFlags  bool
+	disableLogger bool
+	configFile    string
+	configRoot    string
+	defaults      ConfigDefaultsProvider
+	normalize     ConfigNormalizer
+	loggerSource  LoggerProvider
 }
 
 var pareto *Pareto
@@ -31,6 +38,10 @@ func init() {
 // New create a pareto env.
 func New() *Pareto {
 	p := new(Pareto)
+	p.disableFlags = false
+	p.disableLogger = false
+	p.defaults = DefaultConfig
+	p.normalize = DefaultNormalize
 
 	return p
 }
@@ -45,24 +56,91 @@ func Logger() *logger.Logger { return pareto.Logger() }
 
 func (p *Pareto) Logger() *logger.Logger { return p.logger }
 
-// Option defines pareto initialization options.
-type Option func(*Pareto)
+func (p *Pareto) Setup() {
+	if !p.disableFlags {
+		flag.Parse()
+	}
 
-// EnableFlagParse enables or disables flag.Parse.
-func EnableFlagParse(parse bool) Option {
-	return func(p *Pareto) {
-		p.flagParse = parse
-		if parse {
-			flag.Parse()
+	// create config
+	p.config = config.GetStore()
+
+	// set defaults
+	p.defaults(p.config)
+
+	// load config
+	if len(p.configFile) != 0 {
+		if err := p.config.Load(p.configFile, p.configRoot); err != nil {
+			log.Fatalf("config store load failed: %v", err)
+		}
+	}
+
+	// normalize
+	if p.normalize != nil {
+		if err := p.normalize(p.config); err != nil {
+			log.Fatalf("config store normalize failed: %v", err)
+		}
+	}
+
+	// create logger
+	if !p.disableLogger {
+		if p.loggerSource != nil {
+			l := p.loggerSource()
+			if l == nil {
+				log.Fatalln("create logger using provider failed")
+			}
+			p.logger = l
+		} else {
+			cfg := logger.Options{}
+			if err := p.config.UnmarshalKey("logger", &cfg); err != nil {
+				log.Fatalln("create logger failed:", err)
+			}
+			p.logger = logger.NewLogger(&cfg)
 		}
 	}
 }
 
-// EnableProfiler enables prof.Profiler.
-func EnableProfiler() Option {
+// Option defines pareto initialization options.
+type Option func(*Pareto)
+
+//// Config defines common configuration framework.
+//type Config struct {
+//	Service service.Descriptor `json:"service" yaml:"service"`
+//	Logger  logger.Options     `json:"logger" yaml:"logger"`
+//	App     any                `json:"app" yaml:"app"`
+//}
+
+type ConfigNormalizer = func(v *config.Store) error
+type ConfigDefaultsProvider = func(v *config.Store)
+type LoggerProvider = func() *logger.Logger
+
+func DefaultNormalize(v *config.Store) error {
+	config.ClampDefault("logger.maxSize", v.GetInt, 20, 100, 50)
+	config.ClampDefault("logger.maxAge", v.GetInt, 1, 30, 7)
+	config.ClampDefault("logger.maxBackups", v.GetInt, 0, 20, 3)
+
+	return nil
+}
+
+func DefaultConfig(v *config.Store) {
+	v.SetDefault("service.name", "pareto")
+	v.SetDefault("service.registry", "nats://127.0.0.1:4222")
+	v.SetDefault("logger.verbosity", "vv")
+	v.SetDefault("logger.logFileName", "stdout")
+	v.SetDefault("logger.maxBackups", 3)
+	v.SetDefault("logger.maxSize", 50)
+	v.SetDefault("logger.maxAge", 7)
+}
+
+// DisableFlags disables flag.Parse.
+func DisableFlags() Option {
 	return func(p *Pareto) {
-		p.profiler = prof.NewProfiler(nil)
-		p.profiler.Start()
+		p.disableFlags = true
+	}
+}
+
+func DisableLogger() Option {
+	return func(p *Pareto) {
+		p.disableLogger = true
 	}
 }
 
@@ -74,14 +152,10 @@ func WithLogger(l *logger.Logger) Option {
 	}
 }
 
-// WithLoggerProvider allows to provide a logger create function
+// WithLoggerProvider allows to provide a logger create function.
 func WithLoggerProvider(provider func() *logger.Logger) Option {
 	return func(p *Pareto) {
-		l := provider()
-		if l == nil {
-			log.Fatalln("call user provided create logger function failed")
-		}
-		p.logger = l
+		p.loggerSource = provider
 	}
 }
 
@@ -105,22 +179,33 @@ func WithWorkingDir(wd *env.WorkingDir) Option {
 	}
 }
 
-// WithConfigStoreFile specifies a config file to load, which will
+// WithConfigStore specifies a config file to load, which will
 // overwrite the default pareto config store.
-func WithConfigStoreFile(file string, rootPaths ...string) Option {
+func WithConfigStore(file string, rootKeys ...string) Option {
 	return func(p *Pareto) {
-		s, err := config.NewStore(file, rootPaths...)
-		if err != nil {
-			log.Fatalf("config store load failed: %v", err)
-		}
-
-		p.config = s
+		p.configFile = file
+		p.configRoot = strings.Join(rootKeys, ".")
 	}
 }
 
-// WithJsonConfParser
-// To load the specified configuration file
-// and invoke the normalizer function for parsing
+func WithConfigDefaultsProvider(fn ConfigDefaultsProvider) Option {
+	return func(p *Pareto) {
+		p.defaults = fn
+	}
+}
+
+// WithConfigNormalizer provides a config normalizer function
+// which will be called when the config, if exists, is loaded.
+func WithConfigNormalizer(fn ConfigNormalizer) Option {
+	return func(p *Pareto) {
+		p.normalize = fn
+	}
+}
+
+// WithJsonConfParser loads the json config file and invokes the normalize function.
+//
+// Deprecated: WithJsonConfParser accepts json format config file only, and is outdated.
+// Use WithConfigDefaultsProvider, WithConfigNormalizer and WithConfigStore instead.
 func WithJsonConfParser(file string, obj any, normalize func(obj any) error) Option {
 	return func(p *Pareto) {
 		err := config.LoadJsonConfig(file, obj)
@@ -144,14 +229,12 @@ func SetupWithOpts(options ...Option) {
 		fn(pareto)
 	}
 
+	pareto.Setup()
+
 	log.Infoln("setup pareto environment done")
 }
 
 // Teardown tears down the working space.
 func Teardown() {
-	if pareto.profiler != nil {
-		pareto.profiler.Stop()
-	}
-
 	log.Infoln("teardown pareto environment done")
 }

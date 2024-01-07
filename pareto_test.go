@@ -13,7 +13,7 @@ import (
 
 func TestWithConfigStore(t *testing.T) {
 	options := []Option{
-		WithConfigStoreFile("config/agent.json"),
+		WithConfigStore("config/agent.json"),
 	}
 
 	SetupWithOpts(options...)
