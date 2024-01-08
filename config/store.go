@@ -117,26 +117,26 @@ type Getter[T box.Number] func(string) T
 
 // Clamp overwrites value of key to min or max if its
 // value is not within range [min, max].
-func Clamp[T box.Number](key string, f Getter[T], min, max T) {
+func Clamp[T box.Number](v *Store, key string, f Getter[T], min, max T) {
 	if min > max {
 		return
 	}
 
 	val := f(key)
 	box.Clamp(&val, min, max)
-	store.Set(key, val)
+	v.Set(key, val)
 }
 
 // ClampDefault acts the same as Clamp except that value of key is overwritten
 // by the default value other than the boundary.
-func ClampDefault[T box.Number](key string, f Getter[T], min, max, def T) {
+func ClampDefault[T box.Number](v *Store, key string, f Getter[T], min, max, def T) {
 	if min > max {
 		return
 	}
 
 	val := f(key)
 	box.ClampDefault(&val, min, max, def)
-	store.Set(key, val)
+	v.Set(key, val)
 }
 
 // GetString returns the value associated with the key as a string.

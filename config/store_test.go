@@ -12,9 +12,9 @@ func TestValidator(t *testing.T) {
 	GetStore().Set("key2", 10.20)
 	GetStore().Set("key3", -3)
 
-	Clamp("key1", GetStore().GetInt, 20, 30)
-	Clamp("key2", GetStore().GetFloat64, 5.0, 30)
-	Clamp("key3", GetStore().GetInt, -5, 30)
+	Clamp(GetStore(), "key1", GetStore().GetInt, 20, 30)
+	Clamp(GetStore(), "key2", GetStore().GetFloat64, 5.0, 30)
+	Clamp(GetStore(), "key3", GetStore().GetInt, -5, 30)
 
 	assert.Equal(t, GetStore().GetInt("key1"), 20)
 	assert.Equal(t, GetStore().GetFloat64("key2"), 10.2)

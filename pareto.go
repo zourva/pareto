@@ -26,7 +26,7 @@ type Pareto struct {
 	configRoot    string
 	defaults      ConfigDefaultsProvider
 	normalize     ConfigNormalizer
-	loggerSource  LoggerProvider
+	loggerCreator LoggerProvider
 }
 
 var pareto *Pareto
@@ -61,30 +61,42 @@ func (p *Pareto) Setup() {
 		flag.Parse()
 	}
 
-	// create config
-	p.config = config.GetStore()
+	// change working dir
+	if err := os.Chdir(env.GetExecFilePath() + "/../"); err != nil {
+		log.Fatalln("change working dir failed:", err)
+	}
+
+	// create app config which will be merged
+	cfg := config.New()
 
 	// set defaults
-	p.defaults(p.config)
+	p.defaults(cfg)
 
 	// load config
 	if len(p.configFile) != 0 {
-		if err := p.config.Load(p.configFile, p.configRoot); err != nil {
+		if err := cfg.Load(p.configFile, p.configRoot); err != nil {
 			log.Fatalf("config store load failed: %v", err)
 		}
 	}
 
 	// normalize
 	if p.normalize != nil {
-		if err := p.normalize(p.config); err != nil {
+		if err := p.normalize(cfg); err != nil {
 			log.Fatalf("config store normalize failed: %v", err)
 		}
 	}
 
+	// merge with the global
+	p.config = config.GetStore()
+	err := p.config.MergeConfigMap(cfg.AllSettings())
+	if err != nil {
+		log.Fatalf("config store merge failed: %v", err)
+	}
+
 	// create logger
 	if !p.disableLogger {
-		if p.loggerSource != nil {
-			l := p.loggerSource()
+		if p.loggerCreator != nil {
+			l := p.loggerCreator()
 			if l == nil {
 				log.Fatalln("create logger using provider failed")
 			}
@@ -114,9 +126,19 @@ type ConfigDefaultsProvider = func(v *config.Store)
 type LoggerProvider = func() *logger.Logger
 
 func DefaultNormalize(v *config.Store) error {
-	config.ClampDefault("logger.maxSize", v.GetInt, 20, 100, 50)
-	config.ClampDefault("logger.maxAge", v.GetInt, 1, 30, 7)
-	config.ClampDefault("logger.maxBackups", v.GetInt, 0, 20, 3)
+	// FixMe: viper doesn't support partial override when UnmarshalKey
+	// consider using https://github.com/knadh/koanf which
+	// overrides by loading order.
+	// If we ever used Set() to update any variable,
+	// then all variables must be overwritten by Set
+	// or else we get empty values for those not overridden.
+	// As the underlying map, which is `override map[string]any`, is
+	// not merged with `config map[string]any` by default.
+	// So, we need to make changes over a temp store and then merge it into
+	// the global config instance.
+	config.ClampDefault(v, "logger.maxSize", v.GetInt, 20, 100, 50)
+	config.ClampDefault(v, "logger.maxAge", v.GetInt, 1, 30, 7)
+	config.ClampDefault(v, "logger.maxBackups", v.GetInt, 0, 20, 3)
 
 	return nil
 }
@@ -155,7 +177,7 @@ func WithLogger(l *logger.Logger) Option {
 // WithLoggerProvider allows to provide a logger create function.
 func WithLoggerProvider(provider func() *logger.Logger) Option {
 	return func(p *Pareto) {
-		p.loggerSource = provider
+		p.loggerCreator = provider
 	}
 }
 
@@ -172,10 +194,6 @@ func WithWorkingDirLayout(wd *env.WorkingDir) Option {
 func WithWorkingDir(wd *env.WorkingDir) Option {
 	return func(p *Pareto) {
 		p.layout = wd
-		err := os.Chdir(env.GetExecFilePath() + "/../")
-		if err != nil {
-			log.Fatalln("change working dir failed:", err)
-		}
 	}
 }
 
@@ -210,13 +228,13 @@ func WithJsonConfParser(file string, obj any, normalize func(obj any) error) Opt
 	return func(p *Pareto) {
 		err := config.LoadJsonConfig(file, obj)
 		if err != nil {
-			log.Fatalln("load config file(", file, ") failed:", err)
+			log.Fatalf("load config file %s failed: %v", file, err)
 		}
 
 		if normalize != nil {
 			err = normalize(obj)
 			if err != nil {
-				log.Fatalln("call user provided config parse function failed", err)
+				log.Fatalln("call normalize function failed:", err)
 			}
 		}
 	}
