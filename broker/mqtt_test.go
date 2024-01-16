@@ -50,18 +50,18 @@ func BenchmarkPublish(b *testing.B) {
 	}
 }
 
-func TestMain(m *testing.M) {
-	srv = NewMQTTServer("s1-broker", "127.0.0.1:1884")
-
-	_ = srv.Startup()
-	defer srv.Shutdown()
-
-	time.Sleep(time.Second)
-
-	m.Run()
-
-	fmt.Println("hold...")
-}
+//func TestMain(m *testing.M) {
+//	srv = NewMQTTServer("s1-broker", "127.0.0.1:1884")
+//
+//	_ = srv.Startup()
+//	defer srv.Shutdown()
+//
+//	time.Sleep(time.Second)
+//
+//	m.Run()
+//
+//	fmt.Println("hold...")
+//}
 
 func TestMQTTClient_Connect(t *testing.T) {
 	//client
