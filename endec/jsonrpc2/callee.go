@@ -1,8 +1,16 @@
 package jsonrpc2
 
+import log "github.com/sirupsen/logrus"
+
+type ChannelProvider interface {
+	// Bind binds router to an underlying channel.
+	Bind(func([]byte) ([]byte, error)) error
+}
+
 // Server defines the JSON-RPC server provider.
 type Server struct {
 	router Router
+	binder ChannelProvider
 }
 
 func (s *Server) route(reqBuf []byte) ([]byte, error) {
@@ -33,11 +41,16 @@ func (s *Server) RegisterHandler(method string, handler Handler) {
 //
 // NOTE: this method is not blocking.
 func (s *Server) Serve() error {
-	return s.router.Binder().Bind(s.route)
+	return s.binder.Bind(s.route)
 }
 
-func NewServer(router Router) *Server {
+func NewServer(router Router, binder ChannelProvider) *Server {
+	if binder == nil {
+		log.Fatalln("binder must not be nil")
+	}
+
 	return &Server{
+		binder: binder,
 		router: router,
 	}
 }

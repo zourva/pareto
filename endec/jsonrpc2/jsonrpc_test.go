@@ -44,8 +44,7 @@ func TestCallerCallee(t *testing.T) {
 	bearer := newBroker()
 	service.Start(bearer)
 
-	router := NewRouter(bearer)
-	server := NewServer(router)
+	server := NewServer(NewRouter(), bearer)
 	server.RegisterHandler("method1", func(request *RPCRequest) *RPCResponse {
 		return NewResponse(request, &TestRsp{Value: "world"})
 	})
