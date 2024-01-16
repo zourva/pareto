@@ -1,19 +1,8 @@
 package jsonrpc2
 
-import "errors"
-
-type Handler func(*RPCRequest) *RPCResponse
-
-// Router defines underlying bearer
-// of the JSON-RPC server side.
-type Router interface {
-	Bind(func([]byte) ([]byte, error)) error
-}
-
 // Server defines the JSON-RPC server provider.
 type Server struct {
-	router  Router
-	handler map[string]Handler
+	router Router
 }
 
 func (s *Server) route(reqBuf []byte) ([]byte, error) {
@@ -22,9 +11,9 @@ func (s *Server) route(reqBuf []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	handler, ok := s.handler[req.Method]
-	if !ok {
-		return nil, errors.New(ErrCodeString[ErrServerMethodNotFound])
+	handler, err2 := s.router.GetHandler(req.Method)
+	if err2 != nil {
+		return nil, err2
 	}
 
 	rsp := handler(req)
@@ -37,19 +26,18 @@ func (s *Server) route(reqBuf []byte) ([]byte, error) {
 //
 // NOTE: not goroutine-safe.
 func (s *Server) RegisterHandler(method string, handler Handler) {
-	s.handler[method] = handler
+	s.router.Register(method, handler)
 }
 
 // Serve binds to underlying router.
 //
 // NOTE: this method is not blocking.
 func (s *Server) Serve() error {
-	return s.router.Bind(s.route)
+	return s.router.Binder().Bind(s.route)
 }
 
 func NewServer(router Router) *Server {
 	return &Server{
-		router:  router,
-		handler: make(map[string]Handler),
+		router: router,
 	}
 }

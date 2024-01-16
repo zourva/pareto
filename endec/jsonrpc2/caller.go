@@ -3,20 +3,21 @@ package jsonrpc2
 import (
 	"encoding/json"
 	"errors"
+	log "github.com/sirupsen/logrus"
 	"math"
 	"math/rand"
 	"time"
 )
 
-// Bearer defines underlying calling process manager
+// Invoker defines underlying calling process manager
 // of JSON-RPC implementation.
-type Bearer interface {
+type Invoker interface {
 	Call(channel string, data []byte, to time.Duration) ([]byte, error)
 }
 
 // Client defines a general JSON-RPC method caller.
 type Client struct {
-	bearer Bearer
+	invoker Invoker
 }
 
 func (i *Client) getId() int {
@@ -35,7 +36,7 @@ func (i *Client) Invoke(channel, method string, timeout time.Duration, params ..
 		return nil, err
 	}
 
-	rspBuf, err := i.bearer.Call(channel, reqBuf, timeout)
+	rspBuf, err := i.invoker.Call(channel, reqBuf, timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -58,9 +59,13 @@ func (i *Client) Invoke(channel, method string, timeout time.Duration, params ..
 }
 
 // NewClient creates an RPC method invoker
-// using the given bearer.
-func NewClient(bearer Bearer) *Client {
+// using the given invoker.
+func NewClient(invoker Invoker) *Client {
+	if invoker == nil {
+		log.Fatalln("invoker must not be nil")
+	}
+
 	return &Client{
-		bearer: bearer,
+		invoker: invoker,
 	}
 }
