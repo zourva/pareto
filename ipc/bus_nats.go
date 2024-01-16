@@ -37,15 +37,15 @@ func NewNatsBus(conf *BusConf) (Bus, error) {
 		nats.MaxReconnects(-1),
 		nats.ClosedHandler(func(conn *nats.Conn) {
 			id, _ := conn.GetClientID()
-			log.Infof("nats connection %d closed", id)
+			log.Infof("nats client %d connection closed", id)
 		}),
 		nats.DisconnectErrHandler(func(conn *nats.Conn, err error) {
 			id, _ := conn.GetClientID()
-			log.Infof("nats %d disconnected: %v", id, err)
+			log.Infof("nats client %d disconnected: %v", id, err)
 		}),
 		nats.ReconnectHandler(func(conn *nats.Conn) {
 			id, _ := conn.GetClientID()
-			log.Infof("nats reconnected, id = %d", id)
+			log.Infof("nats client %d reconnected", id)
 		}))
 	if err != nil {
 		log.Errorln("connect to broker failed:", err)
