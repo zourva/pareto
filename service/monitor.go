@@ -107,9 +107,9 @@ var monitor *Monitor
 // it needs to inquiry service registry to
 // get service status, so it creates a service registry
 // internally to manage all services registered.
-func NewMonitor(broker string) *Monitor {
+func NewMonitor(registry string) *Monitor {
 	s := &Monitor{
-		registry: NewRegistryManager(broker),
+		registry: NewRegistryManager(registry),
 	}
 
 	return s
@@ -119,12 +119,15 @@ func GetMonitor() *Monitor {
 	return monitor
 }
 
-func EnableMonitor(brokerAddr string) *Monitor {
+// EnableMonitor enables service monitor by creating
+// and attaching a service registry manager to the
+// given service registry address.
+func EnableMonitor(registry string) *Monitor {
 	monLock.Lock()
 	defer monLock.Unlock()
 
 	if monitor == nil {
-		monitor = NewMonitor(brokerAddr)
+		monitor = NewMonitor(registry)
 	}
 
 	Start(monitor.registry)
@@ -132,6 +135,8 @@ func EnableMonitor(brokerAddr string) *Monitor {
 	return monitor
 }
 
+// DisableMonitor disables the service monitor
+// if it is enabled already.
 func DisableMonitor() {
 	if monitor == nil {
 		return
