@@ -13,18 +13,9 @@ import (
 // A service comprises a messager, a registerer and hooks.
 // A service has the lifecycle of:
 //
-//	server side				client side
-//	created/enable
-//					<----	BeforeStarting()
-//	starting
-//					<----	AfterStarting()
-//	running
-//					<----	BeforeStopping()
-//	stopping
-//					<----	AfterStopping()
-//	stopped
-//					<----	BeforeDestroyed()
-//	destroyed/disable
+//	lifecycle:  offline -> starting -> servicing -> stopping -> stopped
+//	liveness:   dead    -> starting ->   alive   -> stopping -> dead
+//	readiness:  false   ->  false   -> true/false-> false    -> false
 type Service interface {
 	// Name returns the name of the service.
 	Name() string
@@ -35,33 +26,54 @@ type Service interface {
 	//Registrar returns the delegator associated with this service.
 	Registrar() *Registrar
 
-	// Status returns the internal states this
-	// service want to export to external world.
+	// Status returns the liveness and readiness states
+	// this service exposed.
 	//
 	// Registrar will periodically call this method,
-	// based on the value of Config.Interval, to get
-	// the status object and export to the endpoint
-	// defined by Config.Endpoint.
+	// based on the value of StatusConf.Interval, to get
+	// the status object and report it to the registry.
 	//
-	// The exported content and its format is
+	// The content exported and its format are
 	// implementation-specific and should be carefully
 	// designed by service provider and consumer.
 	Status() *Status
 	StatusConf() *StatusConf
 	MarshalStatus() []byte
+
+	// SetState changes liveness state of
+	// this service manually. Use it carefully
+	// since liveness may cause cascade failures.
 	SetState(state State)
+
+	// State returns liveness of this service.
+	State() State
+
+	// SetReady changes readiness state of
+	// this service.
+	SetReady(ready bool)
+
+	// Ready returns readiness of this service.
+	Ready() bool
 
 	// Startup should be called by user after a service is created
 	// to enable built-in functions such as status export.
 	//
-	// This method should be overwritten by every implementer.
+	// This method is expected to be overwritten.
 	Startup() bool
 
 	// Shutdown should be called before a service is destroyed
 	// to disable built-in functions.
 	//
-	// This method should be overwritten by every implementer.
+	// This method is expected to be overwritten.
 	Shutdown()
+
+	// Listen and Notify defines PS-mode messaging methods.
+	Listen(topic string, fn ipc.Handler) error
+	Notify(topic string, data []byte) error
+
+	// ExposeMethod and CallMethod defines RR-mode messaging methods.
+	ExposeMethod(name string, fn ipc.CalleeHandler) error
+	CallMethod(name string, data []byte, to time.Duration) ([]byte, error)
 
 	//BeforeStarting is called before the service instance is started.
 	BeforeStarting()
@@ -86,12 +98,15 @@ type Service interface {
 type MetaService struct {
 	name        string        //name of this service
 	registry    string        //registry this service registered to
-	messager    *ipc.Messager //messager node or peer
-	registrar   *Registrar    //registry client
+	registrar   *Registrar    //registry client of this service
+	messager    *ipc.Messager //messager this service bound to
 	enableTrace bool          //enable trace of service messaging
 
 	conf   *StatusConf //status report config
 	status *Status     //status snapshot
+
+	watched []string //watched service list, not thread-safe
+	//locker  sync.Locker
 }
 
 func (s *MetaService) Name() string {
@@ -118,8 +133,25 @@ func (s *MetaService) Startup() bool {
 	return true
 }
 
+// SetState changes liveness state of
+// this service manually. Use it carefully
+// since liveness may cause cascade failures.
 func (s *MetaService) SetState(state State) {
 	s.status.State = state
+}
+
+// State returns liveness of this service.
+func (s *MetaService) State() State {
+	return s.status.State
+}
+
+func (s *MetaService) SetReady(r bool) {
+	s.status.Ready = r
+}
+
+// Ready returns readiness of this service.
+func (s *MetaService) Ready() bool {
+	return s.status.Ready
 }
 
 func (s *MetaService) Shutdown() {
@@ -143,7 +175,7 @@ func (s *MetaService) AfterStopping() {
 
 func (s *MetaService) MarshalStatus() []byte {
 	s.status.Time = box.TimeNowMs()
-	s.status.Health = s.conf
+	//s.status.Conf = s.conf
 	buf, err := json.Marshal(s.status)
 	if err != nil {
 		return []byte("")
@@ -183,6 +215,73 @@ func (s *MetaService) ExposeMethod(name string, fn ipc.CalleeHandler) error {
 func (s *MetaService) CallMethod(name string, data []byte, to time.Duration) ([]byte, error) {
 	log.Tracef("%s invoke rpc %s", s.Name(), name)
 	return s.Messager().CallV2(name, data, to)
+}
+
+// Watch registers an observation for a given service.
+// The watch function will be invoked when registry detect any
+// service state change. If whitelist is provided, watch is invoked iff
+// state of services in the list changed.
+func (s *MetaService) Watch(watch func(status *Status), whitelist ...string) error {
+	//if len(spec.Watched) == 0 {
+	//	return errors.New("target service name must not be empty")
+	//}
+
+	//if len(spec.Channel) == 0 {
+	//	log.Tracef("no notify channel provided, ignored")
+	//	return nil
+	//}
+
+	//spec.Watcher = s.name
+	//
+	//if len(spec.TargetStates) == 0 {
+	//	spec.TargetStates = append(spec.TargetStates, defaultWatchedStates...)
+	//}
+
+	//buf, err := json.Marshal(spec)
+	//if err != nil {
+	//	log.Errorf("watch service %s failed", err)
+	//	return err
+	//}
+
+	//_, err = s.CallMethod(EndpointServiceNotice, buf, time.Second)
+	//if err != nil {
+	//	log.Errorf("watch service %s failed", err)
+	//	return err
+	//}
+
+	if len(whitelist) != 0 {
+		//s.locker.Lock()
+		//defer s.locker.Unlock()
+		s.watched = whitelist
+	}
+
+	err := s.Listen(EndpointServiceNotice, func(data []byte) {
+		if len(whitelist) == 0 {
+			return
+		}
+
+		status := &Status{}
+		if err := json.Unmarshal(data, status); err != nil {
+			log.Errorf("service %s: json unmarshal failed: %v", s.name, err)
+			return
+		}
+
+		if s.serviceWatched(status.Name) {
+			watch(status)
+		}
+	})
+
+	return err
+}
+
+func (s *MetaService) serviceWatched(name string) bool {
+	for _, w := range s.watched {
+		if w == name {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (s *MetaService) initialize() bool {
@@ -291,10 +390,12 @@ func NewMetaService(desc *Descriptor, options ...Option) *MetaService {
 		name:        name,
 		registry:    reg,
 		enableTrace: false,
+		//locker:      concurrent.NewSpinLock(),
 		status: &Status{
 			Name:  name,
 			State: Offline,
 			Time:  box.TimeNowMs(),
+			Ready: false,
 		},
 	}
 

@@ -92,6 +92,6 @@ func NewRegisterer(m *ipc.Messager) *Registrar {
 	r := &Registrar{
 		messager: m,
 	}
-	log.Infof("registerer is created for messager %p", m)
+	log.Infof("registrar is created for messager %p", m)
 	return r
 }

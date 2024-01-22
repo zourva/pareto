@@ -41,8 +41,10 @@ import (
 type registry struct {
 	//service name
 	name string
-	//server-side-perceived state
+	//liveness state
 	state State
+	//readiness
+	ready bool
 	//timestamp in ms when up
 	onlineTime uint64
 	//timestamp in ms when down
@@ -50,48 +52,62 @@ type registry struct {
 	//timestamp in ms of last heartbeat
 	updateTime uint64
 
-	checkTimeout bool
-	interval     uint64 //duration in milliseconds
-	threshold    uint64
+	interval  uint64 //duration in milliseconds
+	threshold uint64 //number of failures allowed
 }
 
 func (r *registry) timeout() bool {
-	if !r.checkTimeout {
-		return false
-	}
-
 	duration := box.TimeNowMs() - r.updateTime
 	return duration > r.interval*r.threshold
 }
 
 func (r *registry) offline() {
 	r.state = Offline
+	r.ready = false
+	r.updateTime = box.TimeNowMs()
+	r.offlineTime = r.updateTime
 	log.Infof("force service %s offline", r.name)
+}
+
+func (r *registry) update(s *Status) {
+	// update check conditions
+	if s.CheckInterval != 0 {
+		r.interval = uint64(s.CheckInterval) * 1000
+	}
+
+	if s.AllowFailures != 0 {
+		r.threshold = uint64(s.AllowFailures)
+	}
+
+	r.state = s.State
+	r.updateTime = box.TimeNowMs()
+}
+
+func (r *registry) toStatus() *Status {
+	return &Status{
+		Name:  r.name,
+		State: r.state,
+		Ready: r.ready,
+		Time:  r.updateTime,
+	}
 }
 
 // RegistryManager manages all services as service clients.
 type RegistryManager struct {
 	*MetaService
-	services sync.Map //registry repository
-	timer    *time.Timer
-	duration time.Duration
+	services sync.Map      //registry repository
+	timer    *time.Timer   //timeout check timer
+	duration time.Duration //timeout check timer duration, 5s by default
+
+	//watchers map[string][]*Watcher
+	//mutex    sync.RWMutex
 }
 
 // Startup starts the server.
 func (s *RegistryManager) Startup() bool {
-	////enable service join when exiting
-	//if err := s.Listen(res.ServiceDown, s.onServiceDown); err != nil {
-	//	return err
-	//}
-	//
-	////transfer control to services themselves
-	//if err := s.Notify(res.ServiceStart); err != nil {
-	//	return err
-	//}
-	//
-	//s.Messager().Publish(topic, args...)
-
 	_ = s.Listen(EndpointServiceStatus, s.handleStatus)
+
+	//_ = s.ExposeMethod(EndpointServiceNotice, s.handleWatch)
 
 	s.timer = time.AfterFunc(s.duration, s.checkTimeout)
 
@@ -157,41 +173,40 @@ func (s *RegistryManager) get(name string) *registry {
 	return nil
 }
 
+// registry spawns an instance of registry from status.
+func (s *RegistryManager) registry(status *Status) *registry {
+	t := box.TimeNowMs()
+
+	r := &registry{
+		name:       status.Name,
+		state:      status.State,
+		ready:      status.Ready,
+		updateTime: t,
+		onlineTime: t,
+	}
+
+	return r
+}
+
 // Up saves a service with the given name and set
 // state to online.
 //
 //	This method is goroutine-safe.
 func (s *RegistryManager) register(status *Status) {
-	t := box.TimeNowMs()
-	s.services.Store(status.Name, &registry{
-		name:       status.Name,
-		state:      status.State,
-		onlineTime: t,
-		updateTime: t,
-	})
+	s.services.Store(status.Name, s.registry(status))
 
 	log.Infof("service %s registered, state = %s", status.Name, status.State.String())
 }
 
 func (s *RegistryManager) update(reg *registry, status *Status) {
-	// update status conf
-	if status.Health != nil {
-		if status.Health.Threshold != 0 &&
-			status.Health.Interval != 0 {
-			reg.checkTimeout = true
-			reg.interval = uint64(status.Health.Interval) * 1000
-			reg.threshold = uint64(status.Health.Threshold)
-		}
-	}
-
 	// notify watchers if state changed
-	if reg.state != status.State {
+	if reg.state != status.State ||
+		reg.ready != status.Ready {
 		s.notifyWatched(reg, status)
 	}
 
 	// overwrite states
-	reg.state = status.State
-	reg.updateTime = box.TimeNowMs()
+	reg.update(status)
 
 	// de-register if stopped normally
 	if reg.state == Stopped {
@@ -209,9 +224,30 @@ func (s *RegistryManager) unregister(name string) {
 }
 
 func (s *RegistryManager) notifyWatched(reg *registry, status *Status) {
-	// TODO:
 	log.Infof("service %s state changed(%s -> %s)",
 		reg.name, reg.state, status.State)
+
+	data, _ := json.Marshal(status)
+	_ = s.Notify(EndpointServiceNotice, data)
+
+	//s.mutex.RLock()
+	//defer s.mutex.RUnlock()
+	//
+	//watchers, ok := s.watchers[reg.name]
+	//if !ok {
+	//	log.Tracef("no watcher registered for service %s", reg.name)
+	//	return
+	//}
+	//
+	//// multi-cast
+	//data, _ := json.Marshal(status)
+	//for _, w := range watchers {
+	//	if len(w.spec.Channel) == 0 {
+	//		continue
+	//	}
+	//
+	//	_ = s.Notify(w.spec.Channel, data)
+	//}
 }
 
 func (s *RegistryManager) handleStatus(data []byte) {
@@ -229,17 +265,58 @@ func (s *RegistryManager) handleStatus(data []byte) {
 	}
 }
 
+//func (s *RegistryManager) handleWatch(data []byte) ([]byte, error) {
+//	spec := &WatchSpec{}
+//	if err := json.Unmarshal(data, spec); err != nil {
+//		log.Errorln("registry manager: json unmarshal watch spec failed:", err)
+//		return nil, nil
+//	}
+//
+//	s.mutex.RLock()
+//	defer s.mutex.RUnlock()
+//
+//	watchers, ok := s.watchers[spec.Watched]
+//	if !ok {
+//		s.watchers[spec.Watched] = append(s.watchers[spec.Watched], &Watcher{
+//			spec: *spec,
+//		})
+//		return []byte("ok"), nil
+//	}
+//
+//	var watcher *Watcher
+//	for _, watcher = range watchers {
+//		if watcher.spec.Watcher == spec.Watcher {
+//			break
+//		}
+//	}
+//
+//	//update
+//	if watcher != nil {
+//		log.Debugf("service %s watcher %s updated", spec.Watched, spec.Watcher)
+//		watcher.spec = *spec
+//	} else {
+//		watchers = append(watchers, &Watcher{
+//			spec: *spec,
+//		})
+//	}
+//
+//	return []byte("ok"), nil
+//}
+
+// checkTimeout iterates over each service
+// and checks if its state is deprecated.
 func (s *RegistryManager) checkTimeout() {
 	s.services.Range(func(key, value any) bool {
 		service := value.(*registry)
 		if service.state != Offline && service.timeout() {
-			//force to offline and notify watched
+			//save old state
+			old := *service
+
+			//force offline
 			service.offline()
-			s.notifyWatched(service, &Status{
-				Name:  service.name,
-				State: Offline,
-				Time:  box.TimeNowMs(),
-			})
+
+			//notify
+			s.notifyWatched(&old, service.toStatus())
 		}
 
 		return true
@@ -248,11 +325,34 @@ func (s *RegistryManager) checkTimeout() {
 	s.timer.Reset(s.duration)
 }
 
-// NewRegistryManager creates a new service server.
-func NewRegistryManager(registry string) *RegistryManager {
+type RegistryOption func(*RegistryManager)
+
+func WithTimeoutCheckDuration(d time.Duration) RegistryOption {
+	return func(m *RegistryManager) {
+		m.duration = d
+	}
+}
+
+// NewRegistryManager creates a service registry, which itself is also a service,
+// and nil is returned if the meta service creation failed.
+func NewRegistryManager(registry string, opts ...RegistryOption) *RegistryManager {
+	regMgr := NewMetaService(&Descriptor{
+		Name:     "registry-manager",
+		Registry: registry,
+	})
+	if regMgr == nil {
+		log.Errorln("create registry manager failed")
+		return nil
+	}
+
 	s := &RegistryManager{
-		MetaService: NewMetaService(&Descriptor{Name: "registry", Registry: registry}),
-		duration:    5 * time.Second,
+		MetaService: regMgr,
+		duration:    5 * time.Second, // default
+		//watchers:    make(map[string][]*Watcher),
+	}
+
+	for _, fn := range opts {
+		fn(s)
 	}
 
 	log.Infoln("registry manager created")
