@@ -72,7 +72,7 @@ func (r *registry) offline() {
 func (r *registry) update(s *Status) {
 	// update check conditions
 	if s.CheckInterval != 0 {
-		r.interval = uint64(s.CheckInterval) * 1000
+		r.interval = uint64(s.CheckInterval)
 	}
 
 	if s.AllowFailures != 0 {
@@ -183,7 +183,12 @@ func (s *RegistryManager) registry(status *Status) *registry {
 		ready:      status.Ready,
 		updateTime: t,
 		onlineTime: t,
+		interval:   uint64(status.CheckInterval) * 1000,
+		threshold:  uint64(status.AllowFailures),
 	}
+
+	box.SetIfEq(&r.interval, 0, StatusReportInterval*1000)
+	box.SetIfEq(&r.threshold, 0, StatusLostThreshold)
 
 	return r
 }

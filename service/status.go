@@ -25,7 +25,8 @@ type Status struct {
 	Metrics any `json:"metrics,omitempty"` //detail metrics, optional
 
 	//Conf *StatusConf `json:"health,omitempty"`
-	//if provided, overwrites the default timeout check interval(5000ms)
+
+	//check interval, in seconds, if provided, overwrites the default(5s)
 	CheckInterval uint32 `json:"checkInterval,omitempty"`
 
 	//if provided, overwrites the default failure count(3 times)
