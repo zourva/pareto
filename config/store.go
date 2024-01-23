@@ -61,8 +61,8 @@ func New() *Store {
 		viper.KeyDelimiter("."),
 	)
 
-	v.EncoderRegistry().RegisterEncoder("db", DBCodec{})
-	v.DecoderRegistry().RegisterDecoder("db", DBCodec{})
+	_ = v.EncoderRegistry().RegisterEncoder("db", DBCodec{})
+	_ = v.DecoderRegistry().RegisterDecoder("db", DBCodec{})
 
 	s.Viper = v
 	s.root = ""
@@ -196,8 +196,8 @@ func NewStore(file string, rootKeys ...string) (*Store, error) {
 		viper.KeyDelimiter("."),
 	)
 
-	v.EncoderRegistry().RegisterEncoder("db", DBCodec{})
-	v.DecoderRegistry().RegisterDecoder("db", DBCodec{})
+	_ = v.EncoderRegistry().RegisterEncoder("db", DBCodec{})
+	_ = v.DecoderRegistry().RegisterDecoder("db", DBCodec{})
 	v.SetConfigFile(file)
 
 	err = v.ReadInConfig()
