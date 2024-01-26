@@ -6,15 +6,25 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/zourva/pareto/box"
 	"github.com/zourva/pareto/box/env"
+	"github.com/zourva/pareto/config"
 	"github.com/zourva/pareto/logger"
 	"os"
 	"testing"
 )
 
-// func TestSetupDefault(t *testing.T) {
-//	Setup()
-//	Teardown()
-// }
+func TestWithConfigStore(t *testing.T) {
+	options := []Option{
+		WithConfigStore("config/agent.json"),
+	}
+
+	SetupWithOpts(options...)
+
+	for _, k := range Config().AllKeys() {
+		t.Logf("%s\n", k)
+	}
+
+	Teardown()
+}
 
 func TestSetupWithOpts(t *testing.T) {
 	options := []Option{
@@ -38,6 +48,35 @@ func TestSetupWithOpts(t *testing.T) {
 	}
 
 	SetupWithOpts(options...)
+	Teardown()
+}
+
+func TestSetupWithOptsNew(t *testing.T) {
+	options := []Option{
+		//WithLogger(
+		//	logger.NewLogger(&logger.Options{
+		//		Verbosity:   "vv",
+		//		LogFileName: env.GetExecFilePath() + "/../log/new.log",
+		//	}),
+		//),
+		WithWorkingDir(
+			env.NewWorkingDir(true,
+				[]*env.DirInfo{
+					{Name: "bin", Mode: 0755},
+					{Name: "etc", Mode: 0755},
+					{Name: "lib", Mode: 0755},
+					{Name: "log", Mode: 0755},
+					{Name: "data", Mode: 0755},
+				}),
+		),
+		WithConfigNormalizer(func(v *config.Store) error {
+			return nil
+		}),
+		WithConfigStore("etc/agent.json"),
+	}
+
+	SetupWithOpts(options...)
+
 	Teardown()
 }
 
@@ -91,7 +130,7 @@ func TestWithLoggerProvider(t *testing.T) {
 		})
 	}))
 
-	assert.NotNil(t, bot.logger)
+	assert.NotNil(t, pareto.logger)
 }
 
 func TestWithLoggerProvider2(t *testing.T) {
@@ -126,12 +165,12 @@ func TestWithLoggerProvider2(t *testing.T) {
 		WithLoggerProvider(func() *logger.Logger {
 			return logger.NewLogger(&logger.Options{
 				Verbosity:   "vv",
-				LogFileName: env.GetExecFilePath() + tc.LoggerFile,
+				LogFileName: env.GetExecFilePath() + "/../log/" + tc.LoggerFile,
 			})
 		}))
 	log.Info("this is a test log line...")
 
-	ok, err := box.PathExists(env.GetExecFilePath() + tc.LoggerFile)
+	ok, err := box.PathExists(env.GetExecFilePath() + "/../log/" + tc.LoggerFile)
 	assert.Nil(t, err)
 	assert.Equal(t, true, ok)
 

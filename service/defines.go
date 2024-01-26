@@ -13,21 +13,21 @@ const (
 	// telling each service to start running.
 	//EndpointServiceStart = "/registry-center/service/start"
 
+	// EndpointServiceDown is required to be published by service manager
+	// after stopped but before quit, and is subscribed by the service
+	// manager to do the cleaning.
+	// EndpointServiceDown = "/registry-center/service/down"
+
 	// EndpointServiceStop is published by service manager, and is
 	// expected to be subscribed by each service,
 	// telling each service to stop running.
 	//EndpointServiceStop = "/registry-center/service/stop"
 
-	//EndpointServiceWatch = "/registry-center/service/watch"
+	EndpointServiceNotice = "/registry-center/service/notice"
 	EndpointServiceStatus = "/registry-center/service/status"
-
-	// EndpointServiceDown is required to be published by service manager
-	// after stopped but before quit, and is subscribed by the service
-	// manager to do the cleaning.
-	// EndpointServiceDown = "/registry-center/service/down"
 )
 
-// State defines service state.
+// State defines service liveliness state.
 type State int
 
 const (

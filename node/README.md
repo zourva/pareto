@@ -1,5 +1,5 @@
 # Node Management
-A node can be seen as a physical device running an operation system.
+A node can be seen as a physical device running an operating system.
 
 A node agent registers itself to a node server, and manages all services running on that node.
 

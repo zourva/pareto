@@ -13,18 +13,9 @@ import (
 // A service comprises a messager, a registerer and hooks.
 // A service has the lifecycle of:
 //
-//	server side				client side
-//	created/enable
-//					<----	BeforeStarting()
-//	starting
-//					<----	AfterStarting()
-//	running
-//					<----	BeforeStopping()
-//	stopping
-//					<----	AfterStopping()
-//	stopped
-//					<----	BeforeDestroyed()
-//	destroyed/disable
+//	lifecycle:  offline -> starting -> servicing -> stopping -> stopped
+//	liveness:   dead    -> starting ->   alive   -> stopping -> dead
+//	readiness:  false   ->  false   -> true/false-> false    -> false
 type Service interface {
 	// Name returns the name of the service.
 	Name() string
@@ -32,38 +23,57 @@ type Service interface {
 	//Messager returns the messager instance associated with this service.
 	Messager() *ipc.Messager
 
-	//Registerer returns the delegator associated with this service.
-	Registerer() *Registerer
+	//Registrar returns the delegator associated with this service.
+	Registrar() *Registrar
 
-	//Config returns the configuration info of this service.
-	Config() *Config
-
-	// Status returns the internal states this
-	// service want to export to external world.
+	// Status returns the liveness and readiness states
+	// this service exposed.
 	//
-	// Registerer will periodically call this method,
-	// based on the value of Config.Interval, to get
-	// the status object and export to the endpoint
-	// defined by Config.Endpoint.
+	// Registrar will periodically call this method,
+	// based on the value of StatusConf.Interval, to get
+	// the status object and report it to the registry.
 	//
-	// The exported content and its format is
+	// The content exported and its format are
 	// implementation-specific and should be carefully
 	// designed by service provider and consumer.
 	Status() *Status
+	StatusConf() *StatusConf
 	MarshalStatus() []byte
+
+	// SetState changes liveness state of
+	// this service manually. Use it carefully
+	// since liveness may cause cascade failures.
 	SetState(state State)
+
+	// State returns liveness of this service.
+	State() State
+
+	// SetReady changes readiness state of
+	// this service.
+	SetReady(ready bool)
+
+	// Ready returns readiness of this service.
+	Ready() bool
 
 	// Startup should be called by user after a service is created
 	// to enable built-in functions such as status export.
 	//
-	// This method should be overwritten by every implementer.
+	// This method is expected to be overwritten.
 	Startup() bool
 
 	// Shutdown should be called before a service is destroyed
 	// to disable built-in functions.
 	//
-	// This method should be overwritten by every implementer.
+	// This method is expected to be overwritten.
 	Shutdown()
+
+	// Listen and Notify defines PS-mode messaging methods.
+	Listen(topic string, fn ipc.Handler) error
+	Notify(topic string, data []byte) error
+
+	// ExposeMethod and CallMethod defines RR-mode messaging methods.
+	ExposeMethod(name string, fn ipc.CalleeHandler) error
+	CallMethod(name string, data []byte, to time.Duration) ([]byte, error)
 
 	//BeforeStarting is called before the service instance is started.
 	BeforeStarting()
@@ -83,57 +93,65 @@ type Service interface {
 	//BeforeDestroyed()
 }
 
-// Config sums up info necessary to define a new service.
-type Config struct {
-	//Name of the service, mandatory.
-	Name string
-
-	//Messager to communicate with service server, mandatory.
-	Messager *ipc.Messager
-
-	//Registerer as a delegator to interact with service server, mandatory.
-	Registerer *Registerer
-
-	//EnableTrace
-	EnableTrace bool
-
-	//Status report config
-	Status *StatusConf
-}
-
 // MetaService implements the Service interface and
 // provides a bunch of methods for inheritance.
 type MetaService struct {
-	conf   *Config
-	status *Status
+	name        string        //name of this service
+	registry    string        //registry this service registered to
+	registrar   *Registrar    //registry client of this service
+	messager    *ipc.Messager //messager this service bound to
+	enableTrace bool          //enable trace of service messaging
+
+	conf   *StatusConf //status report config
+	status *Status     //status snapshot
+
+	watched []string //watched service list, not thread-safe
+	//locker  sync.Locker
 }
 
 func (s *MetaService) Name() string {
-	return s.conf.Name
+	return s.name
 }
 
 func (s *MetaService) Messager() *ipc.Messager {
-	return s.conf.Messager
+	return s.messager
 }
 
-func (s *MetaService) Registerer() *Registerer {
-	return s.conf.Registerer
-}
-
-func (s *MetaService) Config() *Config {
-	return s.conf
+func (s *MetaService) Registrar() *Registrar {
+	return s.registrar
 }
 
 func (s *MetaService) Status() *Status {
 	return s.status
 }
 
+func (s *MetaService) StatusConf() *StatusConf {
+	return s.conf
+}
+
 func (s *MetaService) Startup() bool {
 	return true
 }
 
+// SetState changes liveness state of
+// this service manually. Use it carefully
+// since liveness may cause cascade failures.
 func (s *MetaService) SetState(state State) {
 	s.status.State = state
+}
+
+// State returns liveness of this service.
+func (s *MetaService) State() State {
+	return s.status.State
+}
+
+func (s *MetaService) SetReady(r bool) {
+	s.status.Ready = r
+}
+
+// Ready returns readiness of this service.
+func (s *MetaService) Ready() bool {
+	return s.status.Ready
 }
 
 func (s *MetaService) Shutdown() {
@@ -157,7 +175,7 @@ func (s *MetaService) AfterStopping() {
 
 func (s *MetaService) MarshalStatus() []byte {
 	s.status.Time = box.TimeNowMs()
-	s.status.Health = s.conf.Status
+	//s.status.Conf = s.conf
 	buf, err := json.Marshal(s.status)
 	if err != nil {
 		return []byte("")
@@ -180,7 +198,7 @@ func (s *MetaService) Listen(topic string, fn ipc.Handler) error {
 
 // Notify broadcasts a notice message to all subscribers and assumes no replies.
 func (s *MetaService) Notify(topic string, data []byte) error {
-	if s.conf.EnableTrace {
+	if s.enableTrace {
 		log.Tracef("%s publish to %s", s.Name(), topic)
 	}
 
@@ -199,117 +217,119 @@ func (s *MetaService) CallMethod(name string, data []byte, to time.Duration) ([]
 	return s.Messager().CallV2(name, data, to)
 }
 
-// NewMetaService creates a new meta service with the given conf.
-// The newly created service is registered automatically to the server.
-// Returns nil when conf is invalid or when the registration failed.
-func NewMetaService(conf *Config) *MetaService {
-	if conf == nil {
-		log.Errorln("service config must not be nil")
-		return nil
+// Watch registers an observation for a given service.
+// The watch function will be invoked when registry detect any
+// service state change. If whitelist is provided, watch is invoked iff
+// state of services in the list changed.
+func (s *MetaService) Watch(watch func(status *Status), whitelist ...string) error {
+	//if len(spec.Watched) == 0 {
+	//	return errors.New("target service name must not be empty")
+	//}
+
+	//if len(spec.Channel) == 0 {
+	//	log.Tracef("no notify channel provided, ignored")
+	//	return nil
+	//}
+
+	//spec.Watcher = s.name
+	//
+	//if len(spec.TargetStates) == 0 {
+	//	spec.TargetStates = append(spec.TargetStates, defaultWatchedStates...)
+	//}
+
+	//buf, err := json.Marshal(spec)
+	//if err != nil {
+	//	log.Errorf("watch service %s failed", err)
+	//	return err
+	//}
+
+	//_, err = s.CallMethod(EndpointServiceNotice, buf, time.Second)
+	//if err != nil {
+	//	log.Errorf("watch service %s failed", err)
+	//	return err
+	//}
+
+	if len(whitelist) != 0 {
+		//s.locker.Lock()
+		//defer s.locker.Unlock()
+		s.watched = whitelist
 	}
 
-	if len(conf.Name) == 0 ||
-		conf.Messager == nil ||
-		conf.Registerer == nil {
-		log.Errorln("service config members must not be nil or empty")
-		return nil
-	}
-
-	if conf.Status == nil {
-		conf.Status = getDefaultStatusConf()
-	} else {
-		if conf.Status.Interval == 0 {
-			conf.Status.Interval = StatusReportInterval
+	err := s.Listen(EndpointServiceNotice, func(data []byte) {
+		if len(whitelist) == 0 {
+			return
 		}
 
-		if conf.Status.Threshold == 0 {
-			conf.Status.Threshold = StatusLostThreshold
+		status := &Status{}
+		if err := json.Unmarshal(data, status); err != nil {
+			log.Errorf("service %s: json unmarshal failed: %v", s.name, err)
+			return
 		}
 
-		//if len(conf.Status.endpoint) == 0 {
-		//	//conf.endpoint = fmt.Sprintf("%s/status", conf.Name)
-		//	conf.Status.endpoint = EndpointServiceStatus
-		//}
-	}
+		if s.serviceWatched(status.Name) {
+			watch(status)
+		}
+	})
 
-	s := &MetaService{
-		conf: conf,
-		status: &Status{
-			Name:  conf.Name,
-			State: Offline,
-			Time:  box.TimeNowMs(),
-		},
-	}
-
-	return s
+	return err
 }
 
-// NewGenericMetaService creates a generic meta service with the given name
-// and use default values for other config items.
-//
-// A default messager is created with:
-//
-//  1. both BUS and RPC capabilities enabled,
-//  2. both BUS and RPC using inter-proc pattern with the same broker endpoint,
-//  3. names for BUS & RPC created from the service name with a format of
-//     {service name}-bus and {service name}-rpc
-//
-// A default register is also created associating with the default messager.
-func NewGenericMetaService(name, broker string) *MetaService {
-	if len(name) == 0 || len(broker) == 0 {
-		log.Errorln("service name/broker must not be empty")
-		return nil
+func (s *MetaService) serviceWatched(name string) bool {
+	for _, w := range s.watched {
+		if w == name {
+			return true
+		}
 	}
 
-	// create default messager
-	busName := fmt.Sprintf("%s-bus", name)
-	rpcName := fmt.Sprintf("%s-rpc", name)
-	messager, err := ipc.NewMessager(&ipc.MessagerConf{
-		BusConf: &ipc.BusConf{
-			Name:   busName,
-			Type:   ipc.InterProcBus,
-			Broker: broker},
-		RpcConf: &ipc.RPCConf{
-			Name:   rpcName,
-			Type:   ipc.InterProcRpc,
-			Broker: broker},
-	})
-	if messager == nil || err != nil {
-		log.Errorln("create default messager failed", err)
-		return nil
+	return false
+}
+
+func (s *MetaService) initialize() bool {
+	if s.messager == nil { // create a default messager
+		busName := fmt.Sprintf("%s-bus", s.name)
+		rpcName := fmt.Sprintf("%s-rpc", s.name)
+		messager, err := ipc.NewMessager(&ipc.MessagerConf{
+			BusConf: &ipc.BusConf{Name: busName, Type: ipc.InterProcBus, Broker: s.registry},
+			RpcConf: &ipc.RPCConf{Name: rpcName, Type: ipc.InterProcRpc, Broker: s.registry},
+		})
+		if messager == nil || err != nil {
+			log.Errorln("create messager failed", err)
+			return false
+		}
+
+		s.messager = messager
 	}
 
-	// create default registerer
-	registerer := NewRegisterer(messager)
-	if registerer == nil {
-		log.Errorln("create default registerer failed")
-		return nil
+	if s.registrar == nil { // create default registrar
+		registrar := NewRegisterer(s.messager)
+		if registrar == nil {
+			log.Errorln("create registrar failed")
+			return false
+		}
+
+		s.registrar = registrar
 	}
 
-	conf := &Config{
-		Name:        name,
-		Messager:    messager,
-		Registerer:  registerer,
-		EnableTrace: false,
-		Status:      getDefaultStatusConf(),
+	if s.conf == nil {
+		s.conf = getDefaultStatusConf()
 	}
 
-	return NewMetaService(conf)
+	return true
 }
 
 // Start starts the given service in the following sequence:
 //  1. registers the service to manager.
 //  2. invokes the user callback service.Start and related hooks.
-//  3. starts the status exporter of Registerer.
+//  3. starts the status exporter of Registrar.
 func Start(s Service) bool {
 	s.SetState(Offline)
 
-	if !s.Registerer().Register(s) {
+	if !s.Registrar().Register(s) {
 		log.Errorf("register service %s failed", s.Name())
 		return false
 	}
 
-	s.Registerer().EnableStatusExport()
+	s.Registrar().EnableStatusReport()
 
 	s.SetState(Starting)
 
@@ -325,7 +345,7 @@ func Start(s Service) bool {
 }
 
 // Stop stops the given service in the following sequence:
-//  1. stops the status exporter of Registerer.
+//  1. stops the status exporter of Registrar.
 //  2. invokes the user callback service.Stop and related hooks.
 //  3. unregisters the service from manager.
 func Stop(s Service) {
@@ -337,7 +357,55 @@ func Stop(s Service) {
 
 	s.SetState(Stopped)
 
-	s.Registerer().DisableStatusExport()
+	s.Registrar().DisableStatusExport()
 
-	s.Registerer().Unregister()
+	s.Registrar().Unregister()
+}
+
+// New creates a service with the given name, registry and options.
+func New(desc *Descriptor, options ...Option) Service {
+	return NewMetaService(desc, options...)
+}
+
+// NewMetaService creates a generic meta service with the given name
+// and use default values for other config items.
+//
+// A default messager is created with:
+//
+//  1. both BUS and RPC capabilities enabled,
+//  2. both BUS and RPC using inter-proc pattern with the same broker endpoint,
+//  3. names for BUS & RPC created from the service name with a format of
+//     {service name}-bus and {service name}-rpc
+//
+// A default register is also created associating with the default messager.
+func NewMetaService(desc *Descriptor, options ...Option) *MetaService {
+	name := desc.Name
+	reg := desc.Registry
+	if len(name) == 0 || len(reg) == 0 {
+		log.Errorln("service name/registry must not be empty")
+		return nil
+	}
+
+	s := &MetaService{
+		name:        name,
+		registry:    reg,
+		enableTrace: false,
+		//locker:      concurrent.NewSpinLock(),
+		status: &Status{
+			Name:  name,
+			State: Offline,
+			Time:  box.TimeNowMs(),
+			Ready: false,
+		},
+	}
+
+	for _, fn := range options {
+		fn(s)
+	}
+
+	if !s.initialize() {
+		return nil
+	}
+
+	return s
 }

@@ -1,48 +1,9 @@
 package service
 
 import (
+	log "github.com/sirupsen/logrus"
 	"sync"
 )
-
-type StatusConf struct {
-	//Interval, in seconds, to refresh and publish service status,
-	//optional with a minimum value of 1 second.
-	//If not provided, or set to 0, status publishing is disabled.
-	Interval uint32 `json:"interval"`
-
-	//Threshold number of intervals before out-of-sync
-	Threshold uint32 `json:"threshold"`
-
-	//Endpoint used to export service status periodically, optional.
-	//If not provided, the default format is used: {service name}/status.
-	//Changed: use centered topic to aggregate service status.
-	//endpoint string
-}
-
-// Status defines heartbeat info published by a service.
-type Status struct {
-	Name   string      `json:"name"`             //name of the service
-	State  State       `json:"state"`            //state of the service
-	Time   uint64      `json:"time"`             //report timestamp in milliseconds
-	Health *StatusConf `json:"health,omitempty"` //if provided, check timeout
-}
-
-// StatusList defines all services status info.
-type StatusList struct {
-	Services []*Status `json:"services"`
-}
-
-func getDefaultStatusConf() *StatusConf {
-	return &StatusConf{
-		Interval:  StatusReportInterval,
-		Threshold: StatusLostThreshold,
-		//endpoint:  EndpointServiceStatus,
-	}
-}
-
-//func getDefaultStatusEndpoint(name string) string {
-//	return fmt.Sprintf("%s/status", name)
-//}
 
 // Monitor monitors status of services
 // and that of some infrastructure, and
@@ -61,6 +22,7 @@ func (m *Monitor) GetStatus(name string) *Status {
 		Name:  reg.name,
 		State: reg.state,
 		Time:  reg.updateTime,
+		Ready: reg.ready,
 	}
 }
 
@@ -73,10 +35,7 @@ func (m *Monitor) GetStatusList() StatusList {
 			Name:  reg.name,
 			State: reg.state,
 			Time:  reg.updateTime,
-			//Health: &StatusConf{
-			//	Interval:  uint32(reg.interval),
-			//	Threshold: uint32(reg.threshold),
-			//},
+			Ready: reg.ready,
 		})
 
 		return true
@@ -107,9 +66,14 @@ var monitor *Monitor
 // it needs to inquiry service registry to
 // get service status, so it creates a service registry
 // internally to manage all services registered.
-func NewMonitor(broker string) *Monitor {
+func NewMonitor(registry string) *Monitor {
+	manager := NewRegistryManager(registry)
+	if manager == nil {
+		return nil
+	}
+
 	s := &Monitor{
-		registry: NewRegistryManager(broker),
+		registry: manager,
 	}
 
 	return s
@@ -119,12 +83,18 @@ func GetMonitor() *Monitor {
 	return monitor
 }
 
-func EnableMonitor(brokerAddr string) *Monitor {
+// EnableMonitor enables service monitor by creating
+// and attaching a service registry manager to the
+// given service registry address.
+func EnableMonitor(registry string) *Monitor {
 	monLock.Lock()
 	defer monLock.Unlock()
 
 	if monitor == nil {
-		monitor = NewMonitor(brokerAddr)
+		monitor = NewMonitor(registry)
+		if monitor == nil {
+			log.Fatalln("enable monitor failed")
+		}
 	}
 
 	Start(monitor.registry)
@@ -132,6 +102,8 @@ func EnableMonitor(brokerAddr string) *Monitor {
 	return monitor
 }
 
+// DisableMonitor disables the service monitor
+// if it is enabled already.
 func DisableMonitor() {
 	if monitor == nil {
 		return
