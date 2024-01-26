@@ -92,7 +92,7 @@ func (f *FileListener[T]) Init(file string, kind Kind) (*T, error) {
 	f.FileKind = kind
 	f.ModifyTime = modify
 
-	log.Infof("init file(%s,%s) listener successfully", file, kind)
+	log.Infof("listener read file(%s,%s) successfully", file, kind)
 	return &f.Content, nil
 }
 
