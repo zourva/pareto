@@ -2,10 +2,14 @@ package config
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/zourva/pareto/box"
 	"os"
+	"reflect"
+	"time"
 )
 
 // LoadJsonConfig loads config object of a JSON file
@@ -40,5 +44,126 @@ func LoadJsonConfig(file string, obj any) error {
 
 	log.Traceln("json config loaded: ", dst.String())
 
+	return nil
+}
+
+type Kind int
+
+const (
+	JSON Kind = iota
+	YAML
+)
+
+func (k Kind) String() string {
+	switch k {
+	case JSON:
+		return "JSON"
+	case YAML:
+		return "YAML"
+	}
+	return "unknown"
+}
+
+type FileListener[T any] struct {
+	FileName   string
+	FileKind   Kind
+	ModifyTime time.Time
+	Content    T
+}
+
+func NewFileListener[T any]() *FileListener[T] {
+	return &FileListener[T]{}
+}
+
+func (f *FileListener[T]) Init(file string, kind Kind) (*T, error) {
+	modify, err := f.modifyTime(file)
+	if err != nil {
+		log.Errorf("get file(%s) failed, err:%v", file, err)
+		return nil, err
+	}
+
+	err = f.load(file, kind, &f.Content)
+	if err != nil {
+		log.Errorf("load file(%s) failed, err:%v", file, err)
+		return nil, err
+	}
+
+	f.FileName = file
+	f.FileKind = kind
+	f.ModifyTime = modify
+
+	log.Infof("init file(%s,%s) listener successfully", file, kind)
+	return &f.Content, nil
+}
+
+func (f *FileListener[T]) Listen(ctx context.Context, duration time.Duration, changed func(content *T) error) {
+	ticker := time.NewTicker(duration)
+
+	log.Infof("file listener is listening...")
+	for {
+		select {
+		case <-ctx.Done():
+			log.Infof("file listener is done, because received context done")
+			return
+		case <-ticker.C:
+			err := f.checker(f.FileName, f.FileKind, changed)
+			if nil != err {
+				log.Info("file listener is done, because check file failed, err:%s", err)
+				return
+			}
+		}
+	}
+}
+
+func (f *FileListener[T]) load(file string, kind Kind, content *T) error {
+	switch kind {
+	case JSON:
+		return LoadJsonConfig(file, content)
+	case YAML:
+		return fmt.Errorf("not supported yaml file")
+	}
+
+	return nil
+}
+
+func (f *FileListener[T]) modifyTime(file string) (time.Time, error) {
+	info, err := os.Stat(file)
+	if err != nil {
+		log.Errorf("stat file(%s) failed,err:%v", file, err)
+		return time.Time{}, err
+	}
+
+	return info.ModTime(), nil
+}
+
+func (f *FileListener[T]) checker(file string, kind Kind, changed func(content *T) error) error {
+	modify, err := f.modifyTime(file)
+	if err != nil {
+		log.Errorf("get file(%s) failed, err:%v", file, err)
+		return nil
+	}
+
+	var content T
+	err = f.load(file, kind, &content)
+	if err != nil {
+		log.Errorf("load file(%s) failed, err:%v", file, err)
+		return nil
+	}
+
+	if reflect.DeepEqual(f.Content, content) {
+		return nil
+	}
+
+	log.Infof("file(%s) was changed(%v), trigger update...", file, modify.Format(time.RFC3339))
+
+	err = changed(&content)
+	if nil != err {
+		log.Errorf("call user function failed, %s", err)
+		return nil
+	}
+
+	f.Content = content
+	f.ModifyTime = modify
+	log.Infof("file(%s) was changed(%v), trigger update successfully", file, modify.Format(time.RFC3339))
 	return nil
 }
