@@ -3,8 +3,14 @@ package service
 import "fmt"
 
 const (
+	Registry = "registry"
+)
+
+const (
 	StatusReportInterval = 5 //seconds
 	StatusLostThreshold  = 3
+	StatusCheckInterval  = 5 //seconds
+	StatusQueryTimeout   = 2 //seconds
 )
 
 const (
@@ -25,7 +31,30 @@ const (
 
 	EndpointServiceNotice = "/registry-center/service/notice"
 	EndpointServiceStatus = "/registry-center/service/status"
+	EndpointServiceInfo   = "/registry-center/service/info"
 )
+
+const (
+	QueryStatus     = "QueryStatus"
+	QueryStatusList = "QueryStatusList"
+)
+
+type QueryStatusReq struct {
+	Name string `json:"name"`
+}
+
+type QueryStatusRsp struct {
+	Status *Status `json:"status"`
+}
+
+type QueryStatusListReq struct {
+	// names of services observed
+	Observed []string `json:"observed"`
+}
+
+type QueryStatusListRsp struct {
+	List *StatusList `json:"list"`
+}
 
 // State defines service liveliness state.
 type State int

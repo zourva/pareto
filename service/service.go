@@ -81,6 +81,9 @@ type Service interface {
 	//AfterStarting is called when the service finish initialization.
 	AfterStarting()
 
+	//CheckRecovery is called AfterStarting and Before Servicing.
+	CheckRecovery(list *StatusList)
+
 	//BeforeStopping is called when the service is about to stop.
 	BeforeStopping()
 
@@ -163,6 +166,11 @@ func (s *MetaService) BeforeStarting() {
 
 func (s *MetaService) AfterStarting() {
 	log.Debugln("finish initializing service", s.Name())
+}
+
+func (s *MetaService) CheckRecovery(list *StatusList) {
+	//override expected if necessary
+	log.Debugln("finish checking recovery for service", s.Name())
 }
 
 func (s *MetaService) BeforeStopping() {
@@ -301,7 +309,7 @@ func (s *MetaService) initialize() bool {
 	}
 
 	if s.registrar == nil { // create default registrar
-		registrar := NewRegisterer(s.messager)
+		registrar := NewRegistrar(s)
 		if registrar == nil {
 			log.Errorln("create registrar failed")
 			return false
@@ -324,12 +332,10 @@ func (s *MetaService) initialize() bool {
 func Start(s Service) bool {
 	s.SetState(Offline)
 
-	if !s.Registrar().Register(s) {
+	if !s.Registrar().Register() {
 		log.Errorf("register service %s failed", s.Name())
 		return false
 	}
-
-	s.Registrar().EnableStatusReport()
 
 	s.SetState(Starting)
 
@@ -338,6 +344,8 @@ func Start(s Service) bool {
 		return false
 	}
 	s.AfterStarting()
+
+	s.CheckRecovery(s.Registrar().list)
 
 	s.SetState(Servicing)
 
