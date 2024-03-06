@@ -8,36 +8,50 @@ const (
 
 const (
 	StatusReportInterval = 5 //seconds
-	StatusLostThreshold  = 3
+	StatusLostThreshold  = 3 //3 intervals to wait before treat service as offline
 	StatusCheckInterval  = 5 //seconds
 	StatusQueryTimeout   = 2 //seconds
+	ReviveWaitThreshold  = 3 //another 3 intervals to wait before purge offline services
 )
 
 const (
-	// EndpointServiceStart is published by service manager, and is
-	// expected to be subscribed by each service,
-	// telling each service to start running.
-	//EndpointServiceStart = "/registry-center/service/start"
+	//EndpointServiceInfo is bound as an RR endpoint accepting
+	//service registration and querying request.
+	EndpointServiceInfo = "/registry-center/service/info"
 
-	// EndpointServiceDown is required to be published by service manager
-	// after stopped but before quit, and is subscribed by the service
-	// manager to do the cleaning.
-	// EndpointServiceDown = "/registry-center/service/down"
-
-	// EndpointServiceStop is published by service manager, and is
-	// expected to be subscribed by each service,
-	// telling each service to stop running.
-	//EndpointServiceStop = "/registry-center/service/stop"
-
-	EndpointServiceNotice = "/registry-center/service/notice"
+	//EndpointServiceStatus is bound as a PS endpoint accepting only
+	//service status periodically reported.
 	EndpointServiceStatus = "/registry-center/service/status"
-	EndpointServiceInfo   = "/registry-center/service/info"
+
+	//EndpointServiceNotice is bound as a PS endpoint publishing only
+	//service status changing events.
+	EndpointServiceNotice = "/registry-center/service/notice"
 )
 
 const (
+	Register        = "Register"
+	ReportStatus    = "ReportStatus"
 	QueryStatus     = "QueryStatus"
 	QueryStatusList = "QueryStatusList"
 )
+
+type RegisterReq struct {
+	Name          string `json:"name"`
+	State         State  `json:"state"`
+	Ready         bool   `json:"ready"`
+	CheckInterval uint32 `json:"checkInterval,omitempty"`
+	AllowFailures uint32 `json:"allowFailures,omitempty"`
+}
+
+type RegisterRsp struct {
+}
+
+type ReportStatusReq struct {
+	Status *Status `json:"status"`
+}
+
+type ReportStatusRsp struct {
+}
 
 type QueryStatusReq struct {
 	Name string `json:"name"`

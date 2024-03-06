@@ -53,13 +53,19 @@ type registry struct {
 	//timestamp in ms of last heartbeat
 	updateTime uint64
 
-	interval  uint64 //duration in milliseconds
-	threshold uint64 //number of failures allowed
+	interval   uint64 //duration in milliseconds
+	threshold  uint64 //number of failures allowed
+	purgeDelay uint64 //number of intervals waiting for revival after offline
 }
 
 func (r *registry) timeout() bool {
 	duration := box.TimeNowMs() - r.updateTime
 	return duration > r.interval*r.threshold
+}
+
+func (r *registry) dead() bool {
+	duration := box.TimeNowMs() - r.offlineTime
+	return duration > r.interval*r.purgeDelay
 }
 
 func (r *registry) offline() {
@@ -216,6 +222,7 @@ func (s *RegistryManager) registry(status *Status) *registry {
 
 	box.SetIfEq(&r.interval, 0, StatusReportInterval*1000)
 	box.SetIfEq(&r.threshold, 0, StatusLostThreshold)
+	box.SetIfEq(&r.purgeDelay, 0, ReviveWaitThreshold)
 
 	return r
 }
@@ -402,15 +409,22 @@ func (s *RegistryManager) handleQueryStatusList(req *jsonrpc2.RPCRequest) *jsonr
 func (s *RegistryManager) checkTimeout() {
 	s.services.Range(func(key, value any) bool {
 		service := value.(*registry)
-		if service.state != Offline && service.timeout() {
-			//save old state
-			old := *service
-
-			//force offline
-			service.offline()
-
-			//notify
-			s.notifyWatched(&old, service.toStatus())
+		if service.state == Offline {
+			if service.dead() {
+				//remove dead entries
+				s.services.Delete(key)
+			} else {
+				//wait for revival or dead
+			}
+		} else { //not Offline but heart-beating stopped
+			if service.timeout() {
+				//save old state to notify diff
+				old := *service
+				//force offline to change state
+				service.offline()
+				//notify based on both old and new status
+				s.notifyWatched(&old, service.toStatus())
+			}
 		}
 
 		return true
