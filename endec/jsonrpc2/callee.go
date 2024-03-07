@@ -1,56 +1,37 @@
 package jsonrpc2
 
-import log "github.com/sirupsen/logrus"
-
-type ChannelProvider interface {
-	// Bind binds router to an underlying channel.
-	Bind(func([]byte) ([]byte, error)) error
+type ChannelBinder interface {
+	// Bind binds router channels to physical impl.
+	Bind(channels map[string]ChannelHandler) error
 }
 
 // Server defines the JSON-RPC server provider.
 type Server struct {
 	router Router
-	binder ChannelProvider
-}
-
-func (s *Server) route(reqBuf []byte) ([]byte, error) {
-	req, err := ParseRequest(reqBuf)
-	if err != nil {
-		return nil, err
-	}
-
-	handler, err2 := s.router.GetHandler(req.Method)
-	if err2 != nil {
-		return nil, err2
-	}
-
-	rsp := handler(req)
-
-	return rsp.Marshal()
 }
 
 // RegisterHandler registers a handler for the
-// given method, and replace the old one if exists.
+// given method, and replace the old one if exists,
+// in the default channel.
 //
 // NOTE: not goroutine-safe.
-func (s *Server) RegisterHandler(method string, handler Handler) {
-	s.router.Register(method, handler)
+func (s *Server) RegisterHandler(channel, method string, handler Handler) {
+	s.router.Register(channel, method, handler)
 }
 
 // Serve binds to underlying router.
 //
 // NOTE: this method is not blocking.
 func (s *Server) Serve() error {
-	return s.binder.Bind(s.route)
+	return s.router.Run()
 }
 
-func NewServer(router Router, binder ChannelProvider) *Server {
-	if binder == nil {
-		log.Fatalln("binder must not be nil")
-	}
+func (s *Server) Router() Router {
+	return s.router
+}
 
+func NewServer(router Router) *Server {
 	return &Server{
-		binder: binder,
 		router: router,
 	}
 }

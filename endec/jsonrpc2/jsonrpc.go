@@ -218,6 +218,10 @@ func NewResponse(request *RPCRequest, data any) *RPCResponse {
 	return response
 }
 
+func NewErrorResponseWithCodeOnly(code int) *RPCResponse {
+	return NewErrorResponse(code, ErrCodeString[code])
+}
+
 // NewErrorResponse creates an error response
 // with the provided code and error message.
 func NewErrorResponse(code int, msg string) *RPCResponse {
