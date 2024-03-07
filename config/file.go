@@ -64,18 +64,18 @@ func (k Kind) String() string {
 	return "unknown"
 }
 
-type FileListener[T any] struct {
+type File[T any] struct {
 	FileName   string
 	FileKind   Kind
 	ModifyTime time.Time
 	Content    T
 }
 
-func NewFileListener[T any]() *FileListener[T] {
-	return &FileListener[T]{}
+func NewFile[T any]() *File[T] {
+	return &File[T]{}
 }
 
-func (f *FileListener[T]) Init(file string, kind Kind) (*T, error) {
+func (f *File[T]) Init(file string, kind Kind) (*T, error) {
 	modify, err := f.modifyTime(file)
 	if err != nil {
 		log.Errorf("get file(%s) failed, err:%v", file, err)
@@ -92,30 +92,30 @@ func (f *FileListener[T]) Init(file string, kind Kind) (*T, error) {
 	f.FileKind = kind
 	f.ModifyTime = modify
 
-	log.Infof("listener read file(%s,%s) successfully", file, kind)
+	log.Infof("read file(%s,%s) successfully", file, kind)
 	return &f.Content, nil
 }
 
-func (f *FileListener[T]) Listen(ctx context.Context, duration time.Duration, changed func(content *T) error) {
+func (f *File[T]) Listen(ctx context.Context, duration time.Duration, changed func(content *T) error) {
 	ticker := time.NewTicker(duration)
 
-	log.Infof("file listener is listening...")
+	log.Infof("listening file ...")
 	for {
 		select {
 		case <-ctx.Done():
-			log.Infof("file listener is done, because received context done")
+			log.Infof("stop listening, because received context done")
 			return
 		case <-ticker.C:
 			err := f.checker(f.FileName, f.FileKind, changed)
 			if nil != err {
-				log.Info("file listener is done, because check file failed, err:%s", err)
+				log.Info("stop listening, because check file failed, err:%s", err)
 				return
 			}
 		}
 	}
 }
 
-func (f *FileListener[T]) load(file string, kind Kind, content *T) error {
+func (f *File[T]) load(file string, kind Kind, content *T) error {
 	switch kind {
 	case JSON:
 		return LoadJsonConfig(file, content)
@@ -126,7 +126,7 @@ func (f *FileListener[T]) load(file string, kind Kind, content *T) error {
 	return nil
 }
 
-func (f *FileListener[T]) modifyTime(file string) (time.Time, error) {
+func (f *File[T]) modifyTime(file string) (time.Time, error) {
 	info, err := os.Stat(file)
 	if err != nil {
 		log.Errorf("stat file(%s) failed,err:%v", file, err)
@@ -136,7 +136,7 @@ func (f *FileListener[T]) modifyTime(file string) (time.Time, error) {
 	return info.ModTime(), nil
 }
 
-func (f *FileListener[T]) checker(file string, kind Kind, changed func(content *T) error) error {
+func (f *File[T]) checker(file string, kind Kind, changed func(content *T) error) error {
 	modify, err := f.modifyTime(file)
 	if err != nil {
 		log.Errorf("get file(%s) failed, err:%v", file, err)
