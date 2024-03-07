@@ -140,4 +140,6 @@ func (r *router) Register(channel, method string, handler Handler) {
 	}
 
 	r.methodHandlers[channel][method] = handler
+
+	log.Infof("expose method %s at %s", method, channel)
 }

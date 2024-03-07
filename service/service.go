@@ -170,7 +170,7 @@ func (s *MetaService) AfterStarting() {
 
 func (s *MetaService) CheckRecovery(list *StatusList) {
 	//override expected if necessary
-	log.Debugln("finish checking recovery for service", s.Name())
+	log.Debugln("finish recovery checking for", s.Name())
 }
 
 func (s *MetaService) BeforeStopping() {
@@ -215,7 +215,7 @@ func (s *MetaService) Notify(topic string, data []byte) error {
 
 // ExposeMethod registers a server-side method, identified by name, with the given handler.
 func (s *MetaService) ExposeMethod(name string, fn ipc.CalleeHandler) error {
-	log.Infof("%s expose method %s", s.Name(), name)
+	log.Infof("%s expose method at %s", s.Name(), name)
 	return s.Messager().ExposeV2(name, fn)
 }
 
