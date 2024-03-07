@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	log "github.com/sirupsen/logrus"
 	"github.com/zourva/pareto/box"
+	"github.com/zourva/pareto/endec/jsonrpc2"
 	"sync"
 	"time"
 )
@@ -98,6 +99,7 @@ type RegistryManager struct {
 	services sync.Map      //registry repository
 	timer    *time.Timer   //timeout check timer
 	duration time.Duration //timeout check timer duration, 5s by default
+	server   *jsonrpc2.Server
 
 	//watchers map[string][]*Watcher
 	//mutex    sync.RWMutex
@@ -105,8 +107,22 @@ type RegistryManager struct {
 
 // Startup starts the server.
 func (s *RegistryManager) Startup() bool {
-	_ = s.Listen(EndpointServiceStatus, s.handleStatus)
+	binder := NewJsonRpcBinder(s)
+	router := jsonrpc2.NewRouter(binder)
+	server := jsonrpc2.NewServer(router)
+	server.RegisterHandler(EndpointServiceInfo, QueryStatus, s.handleQueryStatus)
+	server.RegisterHandler(EndpointServiceInfo, QueryStatusList, s.handleQueryStatusList)
+	err := server.Serve()
+	if err != nil {
+		log.Errorln("register manager jsonrpc server startup failed")
+		return false
+	}
 
+	log.Debugln("registry manager jsonrpc server up")
+
+	s.server = server
+
+	_ = s.Listen(EndpointServiceStatus, s.handleStatus)
 	//_ = s.ExposeMethod(EndpointServiceNotice, s.handleWatch)
 
 	s.timer = time.AfterFunc(s.duration, s.checkTimeout)
@@ -171,6 +187,17 @@ func (s *RegistryManager) get(name string) *registry {
 	}
 
 	return nil
+}
+
+func (s *RegistryManager) all() []*registry {
+	var list []*registry
+	s.services.Range(func(key, value any) bool {
+		reg := value.(*registry)
+		list = append(list, reg)
+		return true
+	})
+
+	return list
 }
 
 // registry spawns an instance of registry from status.
@@ -308,6 +335,68 @@ func (s *RegistryManager) handleStatus(data []byte) {
 //	return []byte("ok"), nil
 //}
 
+func (s *RegistryManager) handleQueryStatus(req *jsonrpc2.RPCRequest) *jsonrpc2.RPCResponse {
+	var reqObj QueryStatusReq
+	err := req.GetObject(&reqObj)
+	if err != nil {
+		return jsonrpc2.NewErrorResponseWithCodeOnly(jsonrpc2.ErrServerInvalidParameters)
+	}
+
+	reg := s.get(reqObj.Name)
+	if reg == nil {
+		return jsonrpc2.NewErrorResponse(jsonrpc2.ErrServerInvalid, "service name does not exist")
+	}
+
+	return jsonrpc2.NewResponse(req, &QueryStatusRsp{Status: &Status{
+		Name:  reg.name,
+		State: reg.state,
+		Time:  reg.updateTime,
+		Ready: reg.ready,
+		//Metrics: reg.metrics,
+		//CheckInterval: uint32(reg.interval),
+		//AllowFailures: uint32(reg.threshold),
+	}})
+}
+
+func (s *RegistryManager) handleQueryStatusList(req *jsonrpc2.RPCRequest) *jsonrpc2.RPCResponse {
+	var reqObj QueryStatusListReq
+	err := req.GetObject(&reqObj)
+	if err != nil {
+		return jsonrpc2.NewErrorResponseWithCodeOnly(jsonrpc2.ErrServerInvalidParameters)
+	}
+
+	var list StatusList
+	all := s.all()
+	whitelist := reqObj.Observed
+	if whitelist != nil && len(whitelist) != 0 {
+		// if given whitelist, return them
+		for _, name := range whitelist {
+			for _, reg := range all {
+				if reg.name == name {
+					list.Services = append(list.Services, &Status{
+						Name:  reg.name,
+						State: reg.state,
+						Time:  reg.updateTime,
+						Ready: reg.ready,
+					})
+				}
+			}
+		}
+	} else {
+		// if no whitelist, return all
+		for _, reg := range all {
+			list.Services = append(list.Services, &Status{
+				Name:  reg.name,
+				State: reg.state,
+				Time:  reg.updateTime,
+				Ready: reg.ready,
+			})
+		}
+	}
+
+	return jsonrpc2.NewResponse(req, &QueryStatusListRsp{List: &list})
+}
+
 // checkTimeout iterates over each service
 // and checks if its state is deprecated.
 func (s *RegistryManager) checkTimeout() {
@@ -330,6 +419,32 @@ func (s *RegistryManager) checkTimeout() {
 	s.timer.Reset(s.duration)
 }
 
+// JsonRpcBinder implements JSON-RPC channel binding
+// using service-framework messaging mechanism.
+type JsonRpcBinder struct {
+	service Service
+}
+
+func (b *JsonRpcBinder) Bind(channels map[string]jsonrpc2.ChannelHandler) error {
+	for name, handler := range channels {
+		if err := b.service.ExposeMethod(name, handler); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func NewJsonRpcBinder(service Service) *JsonRpcBinder {
+	if service == nil {
+		log.Fatalln("service must not be nil")
+	}
+
+	return &JsonRpcBinder{
+		service: service,
+	}
+}
+
 type RegistryOption func(*RegistryManager)
 
 func WithTimeoutCheckDuration(d time.Duration) RegistryOption {
@@ -342,7 +457,7 @@ func WithTimeoutCheckDuration(d time.Duration) RegistryOption {
 // and nil is returned if the meta service creation failed.
 func NewRegistryManager(registry string, opts ...RegistryOption) *RegistryManager {
 	regMgr := NewMetaService(&Descriptor{
-		Name:     "registry-manager",
+		Name:     Registry,
 		Registry: registry,
 	})
 	if regMgr == nil {
@@ -352,7 +467,7 @@ func NewRegistryManager(registry string, opts ...RegistryOption) *RegistryManage
 
 	s := &RegistryManager{
 		MetaService: regMgr,
-		duration:    5 * time.Second, // default
+		duration:    StatusCheckInterval * time.Second, // default
 		//watchers:    make(map[string][]*Watcher),
 	}
 

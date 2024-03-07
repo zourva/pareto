@@ -12,6 +12,8 @@ type Monitor struct {
 	registry *RegistryManager
 }
 
+// GetStatus returns status of the given service and nil
+// if the service of the given name does not exist.
 func (m *Monitor) GetStatus(name string) *Status {
 	reg := m.registry.get(name)
 	if reg == nil {
@@ -26,11 +28,11 @@ func (m *Monitor) GetStatus(name string) *Status {
 	}
 }
 
+// GetStatusList returns full list of status of managed services.
 func (m *Monitor) GetStatusList() StatusList {
 	var list StatusList
-	m.registry.services.Range(func(key, value any) bool {
-		reg := value.(*registry)
-
+	all := m.registry.all()
+	for _, reg := range all {
 		list.Services = append(list.Services, &Status{
 			Name:  reg.name,
 			State: reg.state,
@@ -38,8 +40,7 @@ func (m *Monitor) GetStatusList() StatusList {
 			Ready: reg.ready,
 		})
 
-		return true
-	})
+	}
 
 	return list
 }
