@@ -16,16 +16,21 @@ const (
 
 const (
 	//EndpointServiceInfo is bound as an RR endpoint accepting
-	//service registration and querying request.
+	// registration and querying request from services.
 	EndpointServiceInfo = "/registry-center/service/info"
 
 	//EndpointServiceStatus is bound as a PS endpoint accepting only
-	//service status periodically reported.
+	//status periodically reported by services.
 	EndpointServiceStatus = "/registry-center/service/status"
 
 	//EndpointServiceNotice is bound as a PS endpoint publishing only
 	//service status changing events.
 	EndpointServiceNotice = "/registry-center/service/notice"
+
+	//EndpointServiceRRHandlePrefix is an RR endpoint prefix which comprises
+	//the unique endpoint of each registered service, in format: prefix + name,
+	//to accept RR message from the registry.
+	EndpointServiceRRHandlePrefix = "/registry-center/service/handle/"
 )
 
 const (

@@ -105,7 +105,6 @@ type RegistryManager struct {
 	services sync.Map      //registry repository
 	timer    *time.Timer   //timeout check timer
 	duration time.Duration //timeout check timer duration, 5s by default
-	server   *jsonrpc2.Server
 
 	//watchers map[string][]*Watcher
 	//mutex    sync.RWMutex
@@ -113,20 +112,15 @@ type RegistryManager struct {
 
 // Startup starts the server.
 func (s *RegistryManager) Startup() bool {
-	binder := NewJsonRpcBinder(s)
-	router := jsonrpc2.NewRouter(binder)
-	server := jsonrpc2.NewServer(router)
-	server.RegisterHandler(EndpointServiceInfo, QueryStatus, s.handleQueryStatus)
-	server.RegisterHandler(EndpointServiceInfo, QueryStatusList, s.handleQueryStatusList)
-	err := server.Serve()
+	s.RpcServer().RegisterHandler(EndpointServiceInfo, QueryStatus, s.handleQueryStatus)
+	s.RpcServer().RegisterHandler(EndpointServiceInfo, QueryStatusList, s.handleQueryStatusList)
+	err := s.RpcServer().Serve()
 	if err != nil {
 		log.Errorln("register manager jsonrpc server startup failed")
 		return false
 	}
 
 	log.Debugln("registry manager jsonrpc server up")
-
-	s.server = server
 
 	_ = s.Listen(EndpointServiceStatus, s.handleStatus)
 	//_ = s.ExposeMethod(EndpointServiceNotice, s.handleWatch)
@@ -431,32 +425,6 @@ func (s *RegistryManager) checkTimeout() {
 	})
 
 	s.timer.Reset(s.duration)
-}
-
-// JsonRpcBinder implements JSON-RPC channel binding
-// using service-framework messaging mechanism.
-type JsonRpcBinder struct {
-	service Service
-}
-
-func (b *JsonRpcBinder) Bind(channels map[string]jsonrpc2.ChannelHandler) error {
-	for name, handler := range channels {
-		if err := b.service.ExposeMethod(name, handler); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func NewJsonRpcBinder(service Service) *JsonRpcBinder {
-	if service == nil {
-		log.Fatalln("service must not be nil")
-	}
-
-	return &JsonRpcBinder{
-		service: service,
-	}
 }
 
 type RegistryOption func(*RegistryManager)

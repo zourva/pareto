@@ -36,6 +36,11 @@ func TestWatch(t *testing.T) {
 	w2 := NewMetaService(&Descriptor{"watched2", "nats://dag0HTXl4RGg7dXdaJwbC8@localhost:4222"})
 	require.NotNil(t, w2)
 
+	w3 := New(&Descriptor{"watched3", "nats://dag0HTXl4RGg7dXdaJwbC8@localhost:4222"},
+		WithPrivateChannelHandler(func(data []byte) ([]byte, error) {
+			return nil, nil
+		}))
+
 	err := w.Watch(func(status *Status) {
 		t.Logf("service %s state changed: %v", status.Name, status)
 	}, "watched1", "watched2")
@@ -43,6 +48,7 @@ func TestWatch(t *testing.T) {
 
 	Start(w1)
 	Start(w2)
+	Start(w3)
 	Start(w)
 
 	time.Sleep(5 * time.Second)

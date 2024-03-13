@@ -5,6 +5,7 @@ import (
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/zourva/pareto/box"
+	"github.com/zourva/pareto/endec/jsonrpc2"
 	"github.com/zourva/pareto/ipc"
 	"time"
 )
@@ -17,14 +18,16 @@ import (
 //	liveness:   dead    -> starting ->   alive   -> stopping -> dead
 //	readiness:  false   ->  false   -> true/false-> false    -> false
 type Service interface {
+	Messaging
+
 	// Name returns the name of the service.
 	Name() string
 
-	//Messager returns the messager instance associated with this service.
+	//Messager returns internal messager instance.
 	Messager() *ipc.Messager
 
 	//Registrar returns the delegator associated with this service.
-	Registrar() *Registrar
+	Registrar() Registrar
 
 	// Status returns the liveness and readiness states
 	// this service exposed.
@@ -67,13 +70,8 @@ type Service interface {
 	// This method is expected to be overwritten.
 	Shutdown()
 
-	// Listen and Notify defines PS-mode messaging methods.
-	Listen(topic string, fn ipc.Handler) error
-	Notify(topic string, data []byte) error
-
-	// ExposeMethod and CallMethod defines RR-mode messaging methods.
-	ExposeMethod(name string, fn ipc.CalleeHandler) error
-	CallMethod(name string, data []byte, to time.Duration) ([]byte, error)
+	//AfterRegistered is called when the service finish registration.
+	AfterRegistered()
 
 	//BeforeStarting is called before the service instance is started.
 	BeforeStarting()
@@ -89,24 +87,24 @@ type Service interface {
 
 	//AfterStopping is called when the service finish shutdown.
 	AfterStopping()
-
-	////AfterCreated is called after the service instance is created.
-	//AfterCreated()
-	////BeforeDestroyed is called before the service instance is destroyed.
-	//BeforeDestroyed()
 }
 
 // MetaService implements the Service interface and
 // provides a bunch of methods for inheritance.
 type MetaService struct {
-	name        string        //name of this service
-	registry    string        //registry this service registered to
-	registrar   *Registrar    //registry client of this service
-	messager    *ipc.Messager //messager this service bound to
-	enableTrace bool          //enable trace of service messaging
+	name        string //name of this service
+	registry    string //registry this service registered to
+	enableTrace bool   //enable trace of service messaging
 
 	conf   *StatusConf //status report config
 	status *Status     //status snapshot
+
+	invoker  *jsonrpc2.Client  //JSON rpc caller
+	exposer  *jsonrpc2.Server  //JSON rpc callee
+	messager *ipc.Messager     //raw messager bound to
+	handler  ipc.CalleeHandler //private RR channel handler
+
+	registrar Registrar //registry client
 
 	watched []string //watched service list, not thread-safe
 	//locker  sync.Locker
@@ -120,8 +118,16 @@ func (s *MetaService) Messager() *ipc.Messager {
 	return s.messager
 }
 
-func (s *MetaService) Registrar() *Registrar {
+func (s *MetaService) Registrar() Registrar {
 	return s.registrar
+}
+
+func (s *MetaService) RpcClient() *jsonrpc2.Client {
+	return s.invoker
+}
+
+func (s *MetaService) RpcServer() *jsonrpc2.Server {
+	return s.exposer
 }
 
 func (s *MetaService) Status() *Status {
@@ -158,6 +164,17 @@ func (s *MetaService) Ready() bool {
 }
 
 func (s *MetaService) Shutdown() {
+}
+
+func (s *MetaService) AfterRegistered() {
+	if s.handler != nil {
+		err := s.ExposeMethod(EndpointServiceRRHandlePrefix+s.Name(), s.handler)
+		if err != nil {
+			log.Fatalf("expose service handle to registry failed: %v", err)
+		}
+	}
+
+	log.Debugln("finish registering service", s.Name())
 }
 
 func (s *MetaService) BeforeStarting() {
@@ -309,14 +326,17 @@ func (s *MetaService) initialize() bool {
 	}
 
 	if s.registrar == nil { // create default registrar
-		registrar := NewRegistrar(s)
-		if registrar == nil {
+		reg := NewRegistrar(s)
+		if reg == nil {
 			log.Errorln("create registrar failed")
 			return false
 		}
 
-		s.registrar = registrar
+		s.registrar = reg
 	}
+
+	s.invoker = jsonrpc2.NewClient(NewJsonRpcInvoker(s))
+	s.exposer = jsonrpc2.NewServer(jsonrpc2.NewRouter(NewJsonRpcBinder(s)))
 
 	if s.conf == nil {
 		s.conf = getDefaultStatusConf()
@@ -337,6 +357,8 @@ func Start(s Service) bool {
 		return false
 	}
 
+	s.AfterRegistered()
+
 	s.SetState(Starting)
 
 	s.BeforeStarting()
@@ -345,7 +367,7 @@ func Start(s Service) bool {
 	}
 	s.AfterStarting()
 
-	s.CheckRecovery(s.Registrar().list)
+	s.CheckRecovery(s.Registrar().StatusList())
 
 	s.SetState(Servicing)
 

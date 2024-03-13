@@ -3,28 +3,36 @@ package service
 import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zourva/pareto/box/meta"
-	"github.com/zourva/pareto/endec/jsonrpc2"
 	"github.com/zourva/pareto/ipc"
 	"time"
 )
+
+type Registrar interface {
+	EnableStatusExport()
+	DisableStatusExport()
+	QueryStatus(name string) *Status
+	QueryStatusList(namesWhitelist []string) *StatusList
+	StatusList() *StatusList
+	Register() bool
+	Unregister()
+}
 
 // Registrar acts as a registry delegator,
 // helping service instances
 // interacting with service server.
 // Registrar implements s1 interface.
-type Registrar struct {
+type registrar struct {
 	//ref to the service this registrar serves.
 	service Service
 
-	invoker  *JsonRpcInvoker
 	exporter meta.Loop
 
 	//status of followed services, used for recovery
 	list *StatusList
 }
 
-// EnableStatusReport exports status of the service periodically.
-func (r *Registrar) EnableStatusReport() {
+// EnableStatusExport exports status of the service periodically.
+func (r *registrar) EnableStatusExport() {
 	if r.exporter != nil {
 		log.Warnln("already enabled status export")
 		return
@@ -47,7 +55,7 @@ func (r *Registrar) EnableStatusReport() {
 }
 
 // DisableStatusExport disables export status of the service.
-func (r *Registrar) DisableStatusExport() {
+func (r *registrar) DisableStatusExport() {
 	// always report stop
 	_ = r.report()
 
@@ -56,8 +64,8 @@ func (r *Registrar) DisableStatusExport() {
 
 // QueryStatus returns status of the given service and nil
 // if the service of the given name does not exist.
-func (r *Registrar) QueryStatus(name string) *Status {
-	client := jsonrpc2.NewClient(r.invoker)
+func (r *registrar) QueryStatus(name string) *Status {
+	client := r.service.RpcClient()
 	rsp, err := client.Invoke(EndpointServiceInfo, QueryStatus, 2*time.Second, &QueryStatusReq{Name: name})
 	if err != nil {
 		log.Errorf("query status of service %s failed, %v", name, err)
@@ -78,8 +86,8 @@ func (r *Registrar) QueryStatus(name string) *Status {
 // If a service is in namesWhitelist while not registered,
 // its Status will not be included in the returned list.
 // All list is returned if namesWhitelist is nil or its length is 0.
-func (r *Registrar) QueryStatusList(namesWhitelist []string) *StatusList {
-	client := jsonrpc2.NewClient(r.invoker)
+func (r *registrar) QueryStatusList(namesWhitelist []string) *StatusList {
+	client := r.service.RpcClient()
 
 	req := &QueryStatusListReq{}
 	req.Observed = append(req.Observed, namesWhitelist...)
@@ -100,12 +108,17 @@ func (r *Registrar) QueryStatusList(namesWhitelist []string) *StatusList {
 	return list.List
 }
 
+// StatusList returns cached status list copy of recently queried.
+func (r *registrar) StatusList() *StatusList {
+	return r.list
+}
+
 // Register registers the delegated service to the registry server,
 // and starts a separate long-running loop to export service status
 // periodically when the registration succeeded.
 //
 // Returns false when any error occurs, and true otherwise.
-func (r *Registrar) Register() bool {
+func (r *registrar) Register() bool {
 	//_, err := msgpack.Marshal(
 	//	map[string]interface{}{
 	//		"name": r.service.Name(),
@@ -120,17 +133,17 @@ func (r *Registrar) Register() bool {
 		r.list = r.QueryStatusList(nil)
 	}
 
-	r.EnableStatusReport()
+	r.EnableStatusExport()
 
 	return true
 }
 
 // Unregister unregisters the service from the registry server.
-func (r *Registrar) Unregister() {
+func (r *registrar) Unregister() {
 	//r.messager.CallV2("/ew1/service/deregister", []byte(s.Name()), time.Second)
 }
 
-func (r *Registrar) report() error {
+func (r *registrar) report() error {
 	err := r.service.Notify(EndpointServiceStatus, r.service.MarshalStatus())
 	if err != nil {
 		log.Warnf("export status for service %s failed: %v", r.service.Name(), err)
@@ -139,39 +152,22 @@ func (r *Registrar) report() error {
 	return nil
 }
 
-type JsonRpcInvoker struct {
-	service Service
-}
-
-func (i *JsonRpcInvoker) Call(channel string, data []byte, to time.Duration) ([]byte, error) {
-	return i.service.CallMethod(channel, data, to)
-}
-
-func NewJsonRpcInvoker(service Service) *JsonRpcInvoker {
-	if service == nil {
-		log.Fatalln("service must not be nil")
-	}
-
-	return &JsonRpcInvoker{service: service}
-}
-
 // NewRegistrar creates a registrar for a service
 // as the delegator of service manager.
-func NewRegistrar(s Service) *Registrar {
-	r := &Registrar{
+func NewRegistrar(s Service) Registrar {
+	r := &registrar{
 		service: s,
-		invoker: NewJsonRpcInvoker(s),
 	}
 
 	log.Infof("registrar is created for service %s", s.Name())
 	return r
 }
 
-// Deprecated
-// NewRegisterer Deprecated creates a new registerer with the
+// NewRegisterer creates a new registerer with the
 // given messager as its communication channel.
-func NewRegisterer(m *ipc.Messager) *Registrar {
-	r := &Registrar{}
+// Deprecated use NewRegistrar instead.
+func NewRegisterer(m *ipc.Messager) Registrar {
+	r := &registrar{}
 	log.Infof("registrar is created for messager %p", m)
 	return r
 }

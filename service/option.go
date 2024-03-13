@@ -10,7 +10,7 @@ func WithMessager(m *ipc.Messager) Option {
 	}
 }
 
-func WithRegistrar(reg *Registrar) Option {
+func WithRegistrar(reg Registrar) Option {
 	return func(s *MetaService) {
 		s.registrar = reg
 	}
@@ -19,6 +19,14 @@ func WithRegistrar(reg *Registrar) Option {
 func EnableTrace(on bool) Option {
 	return func(s *MetaService) {
 		s.enableTrace = on
+	}
+}
+
+// WithPrivateChannelHandler provides an RR handler for endpoint
+// bound on /registry-center/service/handle/{service-name}.
+func WithPrivateChannelHandler(handler ipc.CalleeHandler) Option {
+	return func(s *MetaService) {
+		s.handler = handler
 	}
 }
 
