@@ -8,7 +8,7 @@ import (
 )
 
 // CalleeHandler abstracts the RPC server side universal handler.
-type CalleeHandler func(data []byte) ([]byte, error)
+type CalleeHandler = func(data []byte) ([]byte, error)
 
 // RPCServer defines callee side of an RPC service.
 type RPCServer interface {

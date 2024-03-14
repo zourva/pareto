@@ -7,12 +7,7 @@ import (
 	"time"
 )
 
-type RpcSpec int
-
-const (
-	JsonRpc RpcSpec = iota
-	InvalidRpc
-)
+type Forwarder = func(data []byte) ([]byte, error)
 
 // Messaging defines RR and PS messaging patterns.
 //
@@ -28,6 +23,10 @@ type Messaging interface {
 	// ExposeMethod and CallMethod defines RR-mode messaging methods.
 	ExposeMethod(name string, fn ipc.CalleeHandler) error
 	CallMethod(name string, data []byte, to time.Duration) ([]byte, error)
+
+	// AddCallerForwarder creates a forwarder representing service caller delegator.
+	AddCallerForwarder(sink string, to time.Duration) Forwarder
+	AddCalleeForwarder(sink string, f Forwarder) error
 
 	// RpcClient returns the built-in rpc client
 	RpcClient() *jsonrpc2.Client

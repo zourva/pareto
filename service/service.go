@@ -242,6 +242,16 @@ func (s *MetaService) CallMethod(name string, data []byte, to time.Duration) ([]
 	return s.Messager().CallV2(name, data, to)
 }
 
+func (s *MetaService) AddCallerForwarder(sink string, to time.Duration) Forwarder {
+	return func(data []byte) ([]byte, error) {
+		return s.CallMethod(sink, data, to)
+	}
+}
+
+func (s *MetaService) AddCalleeForwarder(sink string, f Forwarder) error {
+	return s.ExposeMethod(sink, f)
+}
+
 // Watch registers an observation for a given service.
 // The watch function will be invoked when registry detect any
 // service state change. If whitelist is provided, watch is invoked iff
