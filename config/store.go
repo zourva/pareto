@@ -8,6 +8,25 @@ import (
 	"strings"
 )
 
+const (
+	dbExt = "db"
+)
+
+// DBCodec is a customized viper encoder/decoder backed by boltdb.
+type DBCodec struct{}
+
+func (DBCodec) Encode(v map[string]any) ([]byte, error) {
+	//return yaml.Marshal(v)
+	panic("not supported")
+	return nil, nil
+}
+
+func (DBCodec) Decode(b []byte, v map[string]any) error {
+	//return yaml.Unmarshal(b, &v)
+	panic("not supported")
+	return nil
+}
+
 // Store wraps viper and provides extended functionalities.
 // Store uses a storage system as the backlog and accepts
 // multiple config sources to merge them into the storage.
@@ -49,7 +68,7 @@ func (s *Store) Load(file string, rootKeys ...string) error {
 var store *Store
 
 func init() {
-	viper.SupportedExts = append(viper.SupportedExts, "db")
+	viper.SupportedExts = append(viper.SupportedExts, dbExt)
 	store = New()
 }
 
@@ -61,8 +80,8 @@ func New() *Store {
 		viper.KeyDelimiter("."),
 	)
 
-	_ = v.EncoderRegistry().RegisterEncoder("db", DBCodec{})
-	_ = v.DecoderRegistry().RegisterDecoder("db", DBCodec{})
+	_ = v.EncoderRegistry().RegisterEncoder(dbExt, DBCodec{})
+	_ = v.DecoderRegistry().RegisterDecoder(dbExt, DBCodec{})
 
 	s.Viper = v
 	s.root = ""
