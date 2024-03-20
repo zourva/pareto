@@ -24,6 +24,8 @@ type Pareto struct {
 	disableLogger bool
 	configFile    string
 	configRoot    string
+	configType    string
+
 	defaults      ConfigDefaultsProvider
 	normalize     ConfigNormalizer
 	loggerCreator LoggerProvider
@@ -74,7 +76,7 @@ func (p *Pareto) Setup() {
 
 	// load config
 	if len(p.configFile) != 0 {
-		if err := cfg.Load(p.configFile, p.configRoot); err != nil {
+		if err := cfg.Load(p.configFile, p.configType, p.configRoot); err != nil {
 			log.Fatalf("config store load failed: %v", err)
 		}
 	}
@@ -88,7 +90,7 @@ func (p *Pareto) Setup() {
 
 	// merge with the global
 	p.config = config.GetStore()
-	err := p.config.MergeConfigMap(cfg.AllSettings())
+	err := p.config.MergeStore(cfg)
 	if err != nil {
 		log.Fatalf("config store merge failed: %v", err)
 	}
@@ -102,11 +104,11 @@ func (p *Pareto) Setup() {
 			}
 			p.logger = l
 		} else {
-			cfg := logger.Options{}
-			if err := p.config.UnmarshalKey("logger", &cfg); err != nil {
-				log.Fatalln("create logger failed:", err)
+			options := logger.Options{}
+			if e := p.config.UnmarshalKey("logger", &options); e != nil {
+				log.Fatalln("create logger failed:", e)
 			}
-			p.logger = logger.NewLogger(&cfg)
+			p.logger = logger.NewLogger(&options)
 		}
 	}
 }
@@ -114,31 +116,14 @@ func (p *Pareto) Setup() {
 // Option defines pareto initialization options.
 type Option func(*Pareto)
 
-//// Config defines common configuration framework.
-//type Config struct {
-//	Service service.Descriptor `json:"service" yaml:"service"`
-//	Logger  logger.Options     `json:"logger" yaml:"logger"`
-//	App     any                `json:"app" yaml:"app"`
-//}
-
 type ConfigNormalizer = func(v *config.Store) error
 type ConfigDefaultsProvider = func(v *config.Store)
 type LoggerProvider = func() *logger.Logger
 
 func DefaultNormalize(v *config.Store) error {
-	// FixMe: viper doesn't support partial override when UnmarshalKey
-	// consider using https://github.com/knadh/koanf which
-	// overrides by loading order.
-	// If we ever used Set() to update any variable,
-	// then all variables must be overwritten by Set
-	// or else we get empty values for those not overridden.
-	// As the underlying map, which is `override map[string]any`, is
-	// not merged with `config map[string]any` by default.
-	// So, we need to make changes over a temp store and then merge it into
-	// the global config instance.
-	config.ClampDefault(v, "logger.maxSize", v.GetInt, 20, 100, 50)
-	config.ClampDefault(v, "logger.maxAge", v.GetInt, 1, 30, 7)
-	config.ClampDefault(v, "logger.maxBackups", v.GetInt, 0, 20, 3)
+	config.ClampDefault(v, "logger.maxSize", v.Int, 20, 100, 50)
+	config.ClampDefault(v, "logger.maxAge", v.Int, 1, 30, 7)
+	config.ClampDefault(v, "logger.maxBackups", v.Int, 0, 20, 3)
 
 	return nil
 }
@@ -199,9 +184,10 @@ func WithWorkingDir(wd *env.WorkingDir) Option {
 
 // WithConfigStore specifies a config file to load, which will
 // overwrite the default pareto config store.
-func WithConfigStore(file string, rootKeys ...string) Option {
+func WithConfigStore(file string, kind config.Type, rootKeys ...string) Option {
 	return func(p *Pareto) {
 		p.configFile = file
+		p.configType = kind
 		p.configRoot = strings.Join(rootKeys, ".")
 	}
 }

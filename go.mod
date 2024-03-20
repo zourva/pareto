@@ -8,6 +8,10 @@ require (
 	github.com/eclipse/paho.mqtt.golang v1.3.5
 	github.com/fxamacker/cbor/v2 v2.5.0
 	github.com/golang/protobuf v1.5.3
+	github.com/knadh/koanf/parsers/json v0.1.0
+	github.com/knadh/koanf/parsers/yaml v0.1.0
+	github.com/knadh/koanf/providers/file v0.1.0
+	github.com/knadh/koanf/v2 v2.1.0
 	github.com/mochi-co/mqtt v1.1.1
 	github.com/nats-io/nats-server/v2 v2.1.2
 	github.com/nats-io/nats.go v1.31.0
@@ -29,13 +33,17 @@ replace github.com/spf13/viper v1.18.2 => github.com/zourva/viper v0.0.0-2024010
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
+	github.com/go-viper/mapstructure/v2 v2.0.0-alpha.1 // indirect
 	github.com/google/uuid v1.4.0 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/klauspost/compress v1.17.0 // indirect
+	github.com/knadh/koanf/maps v0.1.1 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
+	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
+	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/nats-io/jwt v0.3.2 // indirect
 	github.com/nats-io/nkeys v0.4.6 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect

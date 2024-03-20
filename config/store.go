@@ -1,10 +1,13 @@
 package config
 
 import (
+	"errors"
+	"github.com/knadh/koanf/parsers/json"
+	"github.com/knadh/koanf/parsers/yaml"
+	"github.com/knadh/koanf/providers/file"
+	"github.com/knadh/koanf/v2"
 	log "github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
 	"github.com/zourva/pareto/box"
-	"os"
 	"strings"
 )
 
@@ -27,6 +30,8 @@ func (DBCodec) Decode(b []byte, v map[string]any) error {
 	return nil
 }
 
+type Flusher = func(map[string]any) error
+
 // Store wraps viper and provides extended functionalities.
 // Store uses a storage system as the backlog and accepts
 // multiple config sources to merge them into the storage.
@@ -35,56 +40,124 @@ func (DBCodec) Decode(b []byte, v map[string]any) error {
 // using a key-value pattern, and the config value is accessed
 // using a key, depicted by a tree-node-path.
 type Store struct {
-	*viper.Viper
-	root string //root node path
+	//*viper.Viper
+	*koanf.Koanf
+
+	flushers map[string]Flusher
+}
+
+type Option = func(s *Store)
+
+func (s *Store) decideProviderParser(f string, t Type) (koanf.Provider, koanf.Parser, error) {
+	switch t {
+	//case Sqlite:
+	//return boltdbProvider(f), boltdbParser(), nil
+	//case Boltdb:
+	//	return boltdbProvider(f), boltdbParser(), nil
+	case Yaml:
+		return file.Provider(f), yaml.Parser(), nil
+	case Json:
+		return file.Provider(f), json.Parser(), nil
+	default:
+		return nil, nil, errors.New("not supported")
+	}
+}
+
+func (s *Store) decideTag(t Type) string {
+	switch t {
+	case Sqlite:
+		return Sqlite
+	case Boltdb:
+		return Boltdb
+	case Yaml:
+		return Yaml
+	case Json:
+		return Json
+	default:
+		return "koanf"
+	}
 }
 
 // Load loads config from file into this store.
 // When called multiple times over different files, configs are merged.
-func (s *Store) Load(file string, rootKeys ...string) error {
-	s.SetConfigFile(file)
+func (s *Store) Load(file string, kind Type, rootKeys ...string) error {
+	//tag := s.decideTag(kind)
+	root := strings.Join(rootKeys, ".")
 
-	err := s.ReadInConfig()
+	provider, parser, err := s.decideProviderParser(file, kind)
+	if err != nil {
+		log.Errorf("config type %s invalid: %v", kind, err)
+		return err
+	}
+
+	// load
+	k := koanf.New(".")
+	err = k.Load(provider, parser)
 	if err != nil {
 		log.Errorf("read config file %s failed: %v", file, err)
 		return err
 	}
 
-	if len(rootKeys) != 0 {
-		s.root = strings.Join(rootKeys, ".")
-		newRoot := s.Sub(s.root)
+	// cut to the root
+	if len(root) != 0 {
+		k = k.Cut(root)
+	}
 
-		// overwrite root iff new root node is valid
-		if newRoot != nil {
-			s.Viper = newRoot
-		}
+	// merge
+	err = s.Merge(k)
+	if err != nil {
+		log.Errorf("merge config from %s failed: %v", file, err)
+		return err
 	}
 
 	log.Infof("config loaded")
 	return nil
 }
 
+// Flush writes configurations in store back to the given file.
+func (s *Store) Flush(key string) error {
+	if fn, ok := s.flushers[key]; ok {
+		return fn(s.Cut(key).All())
+	}
+
+	return errors.New("flusher not found")
+}
+
+func (s *Store) MergeStore(store *Store) error {
+	return s.Merge(store.Koanf)
+}
+
+// UnmarshalKey is here for compatible with viper api.
+func (s *Store) UnmarshalKey(path string, o any) error {
+	return s.UnmarshalWithConf(path, o, koanf.UnmarshalConf{})
+}
+
+// SetDefault is here for compatible with viper api.
+func (s *Store) SetDefault(k string, v any) {
+	_ = s.Set(k, v)
+}
+
 // the default global instance
 var store *Store
 
 func init() {
-	viper.SupportedExts = append(viper.SupportedExts, dbExt)
 	store = New()
+}
+
+func WithFlusher(subPath string, flusher Flusher) Option {
+	return func(s *Store) {
+		if len(subPath) != 0 && flusher != nil {
+			s.flushers[subPath] = flusher
+		}
+	}
 }
 
 // New creates a configuration store.
 // Returns the created store or nil if any error occurred.
-func New() *Store {
+func New(opts ...Option) *Store {
 	s := new(Store)
-	v := viper.NewWithOptions(
-		viper.KeyDelimiter("."),
-	)
-
-	_ = v.EncoderRegistry().RegisterEncoder(dbExt, DBCodec{})
-	_ = v.DecoderRegistry().RegisterDecoder(dbExt, DBCodec{})
-
-	s.Viper = v
-	s.root = ""
+	s.Koanf = koanf.NewWithConf(koanf.Conf{Delim: "."})
+	s.flushers = make(map[string]Flusher)
 
 	return s
 }
@@ -107,9 +180,9 @@ func GetStore() *Store {
 // based on the key delimiter, which then identifies a
 // subtree, and will be used as the config tree root.
 // Error is returned if the given path does not exist.
-func Load(file string, rootKeys ...string) error {
-	return store.Load(file, rootKeys...)
-}
+//func Load(file string, rootKeys ...string) error {
+//	return store.Load(file, rootKeys...)
+//}
 
 //func Equal(key string, expected any) bool {
 //	actual := store.Get(key)
@@ -143,7 +216,7 @@ func Clamp[T box.Number](v *Store, key string, f Getter[T], min, max T) {
 
 	val := f(key)
 	box.Clamp(&val, min, max)
-	v.Set(key, val)
+	_ = v.Set(key, val)
 }
 
 // ClampDefault acts the same as Clamp except that value of key is overwritten
@@ -155,39 +228,40 @@ func ClampDefault[T box.Number](v *Store, key string, f Getter[T], min, max, def
 
 	val := f(key)
 	box.ClampDefault(&val, min, max, def)
-	v.Set(key, val)
+	_ = v.Set(key, val)
 }
 
 // GetString returns the value associated with the key as a string.
-func GetString(key string) string { return store.GetString(key) }
+func GetString(key string) string { return store.String(key) }
 
 // GetBool returns the value associated with the key as a boolean.
-func GetBool(key string) bool { return store.GetBool(key) }
+func GetBool(key string) bool { return store.Bool(key) }
 
 // GetInt returns the value associated with the key as an integer.
-func GetInt(key string) int { return store.GetInt(key) }
+func GetInt(key string) int { return store.Int(key) }
 
 // GetInt32 returns the value associated with the key as an integer.
-func GetInt32(key string) int32 { return store.GetInt32(key) }
+func GetInt32(key string) int32 { return int32(store.Int64(key)) }
 
 // GetInt64 returns the value associated with the key as an integer.
-func GetInt64(key string) int64 { return store.GetInt64(key) }
+func GetInt64(key string) int64 { return store.Int64(key) }
 
 // GetUint returns the value associated with the key as an unsigned integer.
-func GetUint(key string) uint { return store.GetUint(key) }
+func GetUint(key string) uint { return uint(store.Int64(key)) }
 
 // GetUint16 returns the value associated with the key as an unsigned integer.
-func GetUint16(key string) uint16 { return store.GetUint16(key) }
+func GetUint16(key string) uint16 { return uint16(store.Int64(key)) }
 
 // GetUint32 returns the value associated with the key as an unsigned integer.
-func GetUint32(key string) uint32 { return store.GetUint32(key) }
+func GetUint32(key string) uint32 { return uint32(store.Int64(key)) }
 
 // GetUint64 returns the value associated with the key as an unsigned integer.
-func GetUint64(key string) uint64 { return store.GetUint64(key) }
+func GetUint64(key string) uint64 { return uint64(store.Int64(key)) }
 
 // GetFloat64 returns the value associated with the key as a float64.
-func GetFloat64(key string) float64 { return store.GetFloat64(key) }
+func GetFloat64(key string) float64 { return store.Float64(key) }
 
+// Deprecated. use New and Load instead.
 // NewStore creates a configuration store based on the given config file.
 //
 // The supported config file content has the same set of extensions provided
@@ -199,78 +273,38 @@ func GetFloat64(key string) float64 { return store.GetFloat64(key) }
 // if the given path does not exist, a new root node is created.
 //
 // Returns the created store or nil if any error occurred.
-func NewStore(file string, rootKeys ...string) (*Store, error) {
-	ok, err := box.PathExists(file)
-	if err != nil {
-		log.Errorf("access file %s failed: %v", file, err)
-		return nil, err
-	}
-
-	if !ok {
-		log.Errorf("file %s does not exist", file)
-		return nil, os.ErrNotExist
-	}
-
-	v := viper.NewWithOptions(
-		viper.KeyDelimiter("."),
-	)
-
-	_ = v.EncoderRegistry().RegisterEncoder("db", DBCodec{})
-	_ = v.DecoderRegistry().RegisterDecoder("db", DBCodec{})
-	v.SetConfigFile(file)
-
-	err = v.ReadInConfig()
-	if err != nil {
-		log.Errorf("read config file %s failed: %v", file, err)
-		return nil, err
-	}
-
-	log.Infof("config loaded")
-
-	root := ""
-	if len(rootKeys) != 0 {
-		root = strings.Join(rootKeys, ".")
-		newRoot := v.Sub(root)
-
-		// overwrite root iff new root node is valid
-		if newRoot != nil {
-			v = newRoot
-		}
-	}
-
-	s := &Store{
-		Viper: v,
-		root:  root,
-	}
-
-	return s, nil
-}
-
-//func New(kind string, rwc io.ReadWriteCloser, rootPaths ...string) (*Store, error) {
-//	if !supported(kind) {
-//		return nil, viper.UnsupportedConfigError(kind)
+//func NewStore(file string, rootKeys ...string) (*Store, error) {
+//	ok, err := box.PathExists(file)
+//	if err != nil {
+//		log.Errorf("access file %s failed: %v", file, err)
+//		return nil, err
 //	}
 //
-//	if rwc == nil {
-//		return nil, errors.New("config buffer must not be nil")
+//	if !ok {
+//		log.Errorf("file %s does not exist", file)
+//		return nil, os.ErrNotExist
 //	}
 //
 //	v := viper.NewWithOptions(
 //		viper.KeyDelimiter("."),
 //	)
 //
-//	v.EncoderRegistry().RegisterEncoder("db", DBCodec{})
-//	v.DecoderRegistry().RegisterDecoder("db", DBCodec{})
-//	v.SetConfigType(kind)
+//	_ = v.EncoderRegistry().RegisterEncoder(dbExt, DBCodec{})
+//	_ = v.DecoderRegistry().RegisterDecoder(dbExt, DBCodec{})
+//	v.SetConfigFile(file)
 //
-//	err := v.ReadConfig(rwc)
+//	err = v.ReadInConfig()
 //	if err != nil {
+//		log.Errorf("read config file %s failed: %v", file, err)
 //		return nil, err
 //	}
 //
-//	if len(rootPaths) != 0 {
-//		rootKey := strings.Join(rootPaths, ".")
-//		newRoot := v.Sub(rootKey)
+//	log.Infof("config loaded")
+//
+//	root := ""
+//	if len(rootKeys) != 0 {
+//		root = strings.Join(rootKeys, ".")
+//		newRoot := v.Sub(root)
 //
 //		// overwrite root iff new root node is valid
 //		if newRoot != nil {
@@ -280,18 +314,8 @@ func NewStore(file string, rootKeys ...string) (*Store, error) {
 //
 //	s := &Store{
 //		Viper: v,
-//		rwc:   rwc,
+//		root:  root,
 //	}
 //
 //	return s, nil
-//}
-//
-//func supported(kind string) bool {
-//	for _, ext := range viper.SupportedExts {
-//		if ext == kind {
-//			return true
-//		}
-//	}
-//
-//	return false
 //}

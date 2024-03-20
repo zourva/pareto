@@ -13,13 +13,14 @@ import (
 )
 
 func TestWithConfigStore(t *testing.T) {
+	t.Log(os.Getwd())
 	options := []Option{
-		WithConfigStore("config/agent.json"),
+		WithConfigStore("./config/agent.json", config.Json),
 	}
 
 	SetupWithOpts(options...)
 
-	for _, k := range Config().AllKeys() {
+	for k, _ := range Config().All() {
 		t.Logf("%s\n", k)
 	}
 
@@ -72,7 +73,7 @@ func TestSetupWithOptsNew(t *testing.T) {
 		WithConfigNormalizer(func(v *config.Store) error {
 			return nil
 		}),
-		WithConfigStore("etc/agent.json"),
+		WithConfigStore("./config/agent.json", config.Json),
 	}
 
 	SetupWithOpts(options...)

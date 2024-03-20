@@ -4,6 +4,15 @@ import (
 	"strconv"
 )
 
+type Type = string
+
+const (
+	Json   Type = "json"
+	Yaml   Type = "yaml" // for both yaml and yml
+	Sqlite Type = "sqlite"
+	Boltdb Type = "boltdb"
+)
+
 // Bool looks up a boolean value and returns false when not found or failure.
 func Bool(section string, k string) bool {
 	return BoolOpt(section, k, false)
