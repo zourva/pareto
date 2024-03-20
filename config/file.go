@@ -108,7 +108,7 @@ func (f *File[T]) Listen(ctx context.Context, duration time.Duration, changed fu
 		case <-ticker.C:
 			err := f.checker(f.FileName, f.FileKind, changed)
 			if nil != err {
-				log.Info("stop listening, because check file failed, err:%s", err)
+				log.Infof("stop listening, because check file failed, err:%v", err)
 				return
 			}
 		}
