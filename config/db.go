@@ -1,15 +1,14 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	bolt "go.etcd.io/bbolt"
-	"os"
 	"time"
 )
 
-// storage abstracts the configuration store persistent layer.
+// storage abstracts the config
+// store persistent layer.
 type storage struct {
 	//options
 	path    string
@@ -19,47 +18,15 @@ type storage struct {
 	inst *bolt.DB
 }
 
-var singleton *storage
-
-func db() *storage {
-	return singleton
-}
-
-// Init creates a new configuration store using the given
-// file name and opens it for read and write.
-// If the given file exists, it's opened for read and write.
-func Init(file string) error {
-	if len(file) == 0 {
-		log.Errorln("invalid file name")
-		return errors.New("invalid file name")
-	}
-
-	if singleton != nil {
-
-	}
-
-	singleton = &storage{
+// newStorage creates a new configuration
+// store using the given file name.
+func newStorage(file string) *storage {
+	db := &storage{
 		path:    file,
-		options: &bolt.Options{Timeout: 60 * time.Second},
+		options: &bolt.Options{Timeout: 5 * time.Second},
 	}
 
-	return singleton.open()
-}
-
-// Destroy destroys the underlying storage database.
-// All configuration info will be lost and cannot be undone.
-func Destroy() error {
-	if err := singleton.close(); err != nil {
-		log.Errorln("close storage error", err)
-		return err
-	}
-
-	if err := os.Remove(singleton.path); err != nil {
-		log.Errorln("remove storage file error", err)
-		return err
-	}
-
-	return nil
+	return db
 }
 
 // open creates and opens a database at the given path.
@@ -67,7 +34,7 @@ func Destroy() error {
 func (d *storage) open() error {
 	db, err := bolt.Open(d.path, 0644, d.options)
 	if err != nil {
-		log.Errorln("open storage file failed", err)
+		log.Errorf("open storage file %s failed %v", d.path, err)
 		return err
 	}
 

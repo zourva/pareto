@@ -13,8 +13,8 @@ import (
 // Pareto defines the context.
 type Pareto struct {
 	layout *env.WorkingDir
-	config *config.Store
 	logger *logger.Logger
+	//config *config.Store
 	// diagnoser  *diagnoser.Diagnoser
 	// monitor    *monitor.SysMonitor
 	// updater    *updater.OtaManager
@@ -22,9 +22,12 @@ type Pareto struct {
 
 	disableFlags  bool
 	disableLogger bool
-	configFile    string
-	configRoot    string
-	configType    string
+
+	confFile string //root config file
+	confData string //root config path
+
+	confFileType config.FileType // root config file type
+	confDataType config.DataType //root config data type
 
 	defaults      ConfigDefaultsProvider
 	normalize     ConfigNormalizer
@@ -51,7 +54,7 @@ func New() *Pareto {
 // Config returns the default global instance of config object.
 func Config() *config.Store { return pareto.Config() }
 
-func (p *Pareto) Config() *config.Store { return p.config }
+func (p *Pareto) Config() *config.Store { return config.GetStore() }
 
 // Logger returns the default global instance of logger object.
 func Logger() *logger.Logger { return pareto.Logger() }
@@ -75,8 +78,8 @@ func (p *Pareto) Setup() {
 	p.defaults(cfg)
 
 	// load config
-	if len(p.configFile) != 0 {
-		if err := cfg.Load(p.configFile, p.configType, p.configRoot); err != nil {
+	if len(p.confFile) != 0 {
+		if err := cfg.Load(p.confFile, p.confFileType, p.confDataType, p.confData); err != nil {
 			log.Fatalf("config store load failed: %v", err)
 		}
 	}
@@ -89,13 +92,12 @@ func (p *Pareto) Setup() {
 	}
 
 	// merge with the global
-	p.config = config.GetStore()
-	err := p.config.MergeStore(cfg)
+	err := config.MergeStore(cfg)
 	if err != nil {
 		log.Fatalf("config store merge failed: %v", err)
 	}
 
-	// create logger
+	// create logger using global config
 	if !p.disableLogger {
 		if p.loggerCreator != nil {
 			l := p.loggerCreator()
@@ -105,7 +107,7 @@ func (p *Pareto) Setup() {
 			p.logger = l
 		} else {
 			options := logger.Options{}
-			if e := p.config.UnmarshalKey("logger", &options); e != nil {
+			if e := config.UnmarshalKey("logger", &options); e != nil {
 				log.Fatalln("create logger failed:", e)
 			}
 			p.logger = logger.NewLogger(&options)
@@ -184,11 +186,12 @@ func WithWorkingDir(wd *env.WorkingDir) Option {
 
 // WithConfigStore specifies a config file to load, which will
 // overwrite the default pareto config store.
-func WithConfigStore(file string, kind config.Type, rootKeys ...string) Option {
+func WithConfigStore(file string, ft config.FileType, dt config.DataType, rootKeys ...string) Option {
 	return func(p *Pareto) {
-		p.configFile = file
-		p.configType = kind
-		p.configRoot = strings.Join(rootKeys, ".")
+		p.confFile = file
+		p.confDataType = dt
+		p.confFileType = ft
+		p.confData = strings.Join(rootKeys, ".")
 	}
 }
 

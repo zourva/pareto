@@ -11,25 +11,6 @@ import (
 	"strings"
 )
 
-const (
-	dbExt = "db"
-)
-
-// DBCodec is a customized viper encoder/decoder backed by boltdb.
-type DBCodec struct{}
-
-func (DBCodec) Encode(v map[string]any) ([]byte, error) {
-	//return yaml.Marshal(v)
-	panic("not supported")
-	return nil, nil
-}
-
-func (DBCodec) Decode(b []byte, v map[string]any) error {
-	//return yaml.Unmarshal(b, &v)
-	panic("not supported")
-	return nil
-}
-
 type Flusher = func(map[string]any) error
 
 // Store wraps viper and provides extended functionalities.
@@ -48,45 +29,42 @@ type Store struct {
 
 type Option = func(s *Store)
 
-func (s *Store) decideProviderParser(f string, t Type) (koanf.Provider, koanf.Parser, error) {
-	switch t {
-	//case Sqlite:
-	//return boltdbProvider(f), boltdbParser(), nil
-	//case Boltdb:
-	//	return boltdbProvider(f), boltdbParser(), nil
-	case Yaml:
-		return file.Provider(f), yaml.Parser(), nil
-	case Json:
-		return file.Provider(f), json.Parser(), nil
-	default:
-		return nil, nil, errors.New("not supported")
-	}
-}
+func (s *Store) decideProviderParser(f string, ft FileType, dt DataType) (koanf.Provider, koanf.Parser, error) {
+	var provider koanf.Provider
+	var parser koanf.Parser
 
-func (s *Store) decideTag(t Type) string {
-	switch t {
-	case Sqlite:
-		return Sqlite
+	switch ft {
+	case Text:
+		provider = file.Provider(f)
+		//case Sqlite:
+	//provider = NewSqliteProvider(f)
 	case Boltdb:
-		return Boltdb
-	case Yaml:
-		return Yaml
-	case Json:
-		return Json
+		provider = NewBoltdbProvider(f)
 	default:
-		return "koanf"
+		return nil, nil, errors.New("invalid file type")
 	}
+
+	switch dt {
+	case Yaml:
+		parser = yaml.Parser()
+	case Json:
+		parser = json.Parser()
+	default:
+		return nil, nil, errors.New("invalid data type")
+	}
+
+	return provider, parser, nil
 }
 
 // Load loads config from file into this store.
 // When called multiple times over different files, configs are merged.
-func (s *Store) Load(file string, kind Type, rootKeys ...string) error {
-	//tag := s.decideTag(kind)
+func (s *Store) Load(file string, ft FileType, dt DataType, rootKeys ...string) error {
+	//tag := s.decideTag(dt)
 	root := strings.Join(rootKeys, ".")
 
-	provider, parser, err := s.decideProviderParser(file, kind)
+	provider, parser, err := s.decideProviderParser(file, ft, dt)
 	if err != nil {
-		log.Errorf("config type %s invalid: %v", kind, err)
+		log.Errorf("config type %s invalid: %v", dt, err)
 		return err
 	}
 
@@ -137,11 +115,47 @@ func (s *Store) SetDefault(k string, v any) {
 	_ = s.Set(k, v)
 }
 
+// Int32 compatible with viper api.
+func (s *Store) Int32(k string) int32 {
+	return int32(store.Int64(k))
+}
+
+// Uint compatible with viper api.
+func (s *Store) Uint(key string) uint {
+	return uint(store.Int64(key))
+}
+
+// Uint16 compatible with viper api.
+func (s *Store) Uint16(key string) uint16 {
+	return uint16(store.Int64(key))
+}
+
+// Uint32 compatible with viper api.
+func (s *Store) Uint32(key string) uint32 {
+	return uint32(store.Int64(key))
+}
+
+// Uint64 compatible with viper api.
+func (s *Store) Uint64(key string) uint64 {
+	return uint64(store.Int64(key))
+}
+
 // the default global instance
 var store *Store
 
 func init() {
 	store = New()
+}
+
+func newStore(k *koanf.Koanf) *Store {
+	s := new(Store)
+	if k == nil {
+		s.Koanf = koanf.NewWithConf(koanf.Conf{Delim: "."})
+	} else {
+		s.Koanf = k
+	}
+
+	return s
 }
 
 func WithFlusher(subPath string, flusher Flusher) Option {
@@ -155,8 +169,7 @@ func WithFlusher(subPath string, flusher Flusher) Option {
 // New creates a configuration store.
 // Returns the created store or nil if any error occurred.
 func New(opts ...Option) *Store {
-	s := new(Store)
-	s.Koanf = koanf.NewWithConf(koanf.Conf{Delim: "."})
+	s := newStore(nil)
 	s.flushers = make(map[string]Flusher)
 
 	return s
@@ -165,6 +178,21 @@ func New(opts ...Option) *Store {
 // GetStore returns the global store instance.
 func GetStore() *Store {
 	return store
+}
+
+// SubStore returns a copy of the subtree of the global
+// store. The subtree is identified by the given path.
+func SubStore(path string) *Store {
+	return newStore(store.Cut(path))
+}
+
+// MergeStore merges the given store into the global one.
+func MergeStore(s *Store) error {
+	return GetStore().MergeStore(s)
+}
+
+func UnmarshalKey(path string, o any) error {
+	return GetStore().Unmarshal(path, o)
 }
 
 // Load loads configurations into the default store,
@@ -231,35 +259,35 @@ func ClampDefault[T box.Number](v *Store, key string, f Getter[T], min, max, def
 	_ = v.Set(key, val)
 }
 
-// GetString returns the value associated with the key as a string.
-func GetString(key string) string { return store.String(key) }
+// String returns the value associated with the key as a string.
+func String(key string) string { return store.String(key) }
 
-// GetBool returns the value associated with the key as a boolean.
-func GetBool(key string) bool { return store.Bool(key) }
+// Bool returns the value associated with the key as a boolean.
+func Bool(key string) bool { return store.Bool(key) }
 
-// GetInt returns the value associated with the key as an integer.
-func GetInt(key string) int { return store.Int(key) }
+// Int returns the value associated with the key as an integer.
+func Int(key string) int { return store.Int(key) }
 
-// GetInt32 returns the value associated with the key as an integer.
-func GetInt32(key string) int32 { return int32(store.Int64(key)) }
+// Int32 returns the value associated with the key as an integer.
+func Int32(key string) int32 { return store.Int32(key) }
 
-// GetInt64 returns the value associated with the key as an integer.
-func GetInt64(key string) int64 { return store.Int64(key) }
+// Int64 returns the value associated with the key as an integer.
+func Int64(key string) int64 { return store.Int64(key) }
 
-// GetUint returns the value associated with the key as an unsigned integer.
-func GetUint(key string) uint { return uint(store.Int64(key)) }
+// Uint returns the value associated with the key as an unsigned integer.
+func Uint(key string) uint { return store.Uint(key) }
 
-// GetUint16 returns the value associated with the key as an unsigned integer.
-func GetUint16(key string) uint16 { return uint16(store.Int64(key)) }
+// Uint16 returns the value associated with the key as an unsigned integer.
+func Uint16(key string) uint16 { return store.Uint16(key) }
 
-// GetUint32 returns the value associated with the key as an unsigned integer.
-func GetUint32(key string) uint32 { return uint32(store.Int64(key)) }
+// Uint32 returns the value associated with the key as an unsigned integer.
+func Uint32(key string) uint32 { return store.Uint32(key) }
 
-// GetUint64 returns the value associated with the key as an unsigned integer.
-func GetUint64(key string) uint64 { return uint64(store.Int64(key)) }
+// Uint64 returns the value associated with the key as an unsigned integer.
+func Uint64(key string) uint64 { return store.Uint64(key) }
 
-// GetFloat64 returns the value associated with the key as a float64.
-func GetFloat64(key string) float64 { return store.Float64(key) }
+// Float64 returns the value associated with the key as a float64.
+func Float64(key string) float64 { return store.Float64(key) }
 
 // Deprecated. use New and Load instead.
 // NewStore creates a configuration store based on the given config file.

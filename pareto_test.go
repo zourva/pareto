@@ -15,7 +15,7 @@ import (
 func TestWithConfigStore(t *testing.T) {
 	t.Log(os.Getwd())
 	options := []Option{
-		WithConfigStore("./config/agent.json", config.Json),
+		WithConfigStore("./config/agent.json", config.Text, config.Json),
 	}
 
 	SetupWithOpts(options...)
@@ -73,7 +73,7 @@ func TestSetupWithOptsNew(t *testing.T) {
 		WithConfigNormalizer(func(v *config.Store) error {
 			return nil
 		}),
-		WithConfigStore("./config/agent.json", config.Json),
+		WithConfigStore("./config/agent.json", config.Text, config.Json),
 	}
 
 	SetupWithOpts(options...)
