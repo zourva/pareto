@@ -242,14 +242,18 @@ func (s *MetaService) CallMethod(name string, data []byte, to time.Duration) ([]
 	return s.Messager().CallV2(name, data, to)
 }
 
-func (s *MetaService) AddCallerForwarder(sink string, to time.Duration) Forwarder {
+// ForwardTo returns a pusher used to push messages,
+// which will be forwarded to the target anchor to this service.
+func (s *MetaService) ForwardTo(target string, to time.Duration) IngressPusher {
 	return func(data []byte) ([]byte, error) {
-		return s.CallMethod(sink, data, to)
+		return s.CallMethod(target, data, to)
 	}
 }
 
-func (s *MetaService) AddCalleeForwarder(sink string, f Forwarder) error {
-	return s.ExposeMethod(sink, f)
+// BindRelay exposes a relay anchor, on which all messages received
+// will be relayed out to somewhere determined by the handler.
+func (s *MetaService) BindRelay(anchor string, handler RelayHandler) error {
+	return s.ExposeMethod(anchor, handler)
 }
 
 // Watch registers an observation for a given service.

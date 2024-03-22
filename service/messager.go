@@ -7,7 +7,9 @@ import (
 	"time"
 )
 
-type Forwarder = func(data []byte) ([]byte, error)
+type IngressPusher = func(data []byte) ([]byte, error)
+
+type RelayHandler = func(data []byte) ([]byte, error)
 
 // Messaging defines RR and PS messaging patterns.
 //
@@ -24,9 +26,12 @@ type Messaging interface {
 	ExposeMethod(name string, fn ipc.CalleeHandler) error
 	CallMethod(name string, data []byte, to time.Duration) ([]byte, error)
 
-	// AddCallerForwarder creates a forwarder representing service caller delegator.
-	AddCallerForwarder(sink string, to time.Duration) Forwarder
-	AddCalleeForwarder(sink string, f Forwarder) error
+	// ForwardTo returns a pusher used to push messages,
+	// which will be forwarded to the target anchor to this service.
+	ForwardTo(target string, to time.Duration) IngressPusher
+	// BindRelay exposes a relay anchor, on which all messages received
+	// will be relayed out to somewhere determined by the handler.
+	BindRelay(relay string, handler RelayHandler) error
 
 	// RpcClient returns the built-in rpc client
 	RpcClient() *jsonrpc2.Client
