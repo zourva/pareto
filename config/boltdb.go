@@ -42,7 +42,11 @@ func (f *BoltdbProvider) ReadBytes() ([]byte, error) {
 		return nil, err
 	}
 
-	return bytes, nil
+	// deep copy, otherwise bytes is invalid after f.storage.close()
+	var value = make([]byte, len(bytes))
+	copy(value, bytes)
+
+	return value, nil
 }
 
 // Read is not supported by boltdb provider.

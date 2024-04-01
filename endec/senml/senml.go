@@ -1,9 +1,9 @@
 package senml
 
 import (
-	"encoding/json"
 	"encoding/xml"
 	"errors"
+	jsoniter "github.com/json-iterator/go"
 	"sort"
 
 	"github.com/fxamacker/cbor/v2"
@@ -91,6 +91,7 @@ func Decode(msg []byte, format Format) (Pack, error) {
 	var p Pack
 	switch format {
 	case JSON:
+		var json = jsoniter.ConfigCompatibleWithStandardLibrary
 		if err := json.Unmarshal(msg, &p.Records); err != nil {
 			return Pack{}, err
 		}
@@ -123,6 +124,7 @@ func DecodeAndNormalize(msg []byte, format Format) (Pack, error) {
 func Encode(p Pack, format Format) ([]byte, error) {
 	switch format {
 	case JSON:
+		var json = jsoniter.ConfigCompatibleWithStandardLibrary
 		return json.Marshal(p.Records)
 	case XML:
 		p.Xmlns = xmlns
