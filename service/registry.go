@@ -112,8 +112,13 @@ type RegistryManager struct {
 
 // Startup starts the server.
 func (s *RegistryManager) Startup() bool {
-	s.RpcServer().RegisterHandler(EndpointServiceInfo, QueryStatus, s.handleQueryStatus)
-	s.RpcServer().RegisterHandler(EndpointServiceInfo, QueryStatusList, s.handleQueryStatusList)
+	s.RpcServer().Router().AddChannel(
+		EndpointServiceInfo,
+		map[string]jsonrpc2.Handler{
+			QueryStatus:     s.handleQueryStatus,
+			QueryStatusList: s.handleQueryStatusList,
+		})
+
 	err := s.RpcServer().Serve()
 	if err != nil {
 		log.Errorln("register manager jsonrpc server startup failed")
