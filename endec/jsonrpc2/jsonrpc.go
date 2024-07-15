@@ -47,6 +47,7 @@ func (r *RPCRequest) GetObject(toType any) error {
 	return nil
 }
 
+// String returns the string representation of the request.
 func (r *RPCRequest) String() string {
 	if r == nil {
 		return "nil"
@@ -220,6 +221,13 @@ func NewResponse(request *RPCRequest, data any) *RPCResponse {
 
 func NewErrorResponseWithCodeOnly(code int) *RPCResponse {
 	return NewErrorResponse(code, ErrCodeString[code])
+}
+
+func NewErrorResponseWithErr(err *RPCError) *RPCResponse {
+	return &RPCResponse{
+		Error:   err,
+		Version: Version,
+	}
 }
 
 // NewErrorResponse creates an error response

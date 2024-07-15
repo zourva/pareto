@@ -180,6 +180,8 @@ func (r *router) AddChannel(endpoint string, handlers map[string]Handler, opts .
 	// save dispatchers for binder
 	r.dispatchers[endpoint] = r.dispatcher(c)
 
+	log.Debugf("register channel %s with %d methods", endpoint, len(handlers))
+
 	return c
 }
 
@@ -453,6 +455,9 @@ func (r *routerChannel) AddInterceptors(interceptors ...Interceptor) RouterChann
 		}
 	}
 
+	log.Debugf("add %d intercepotrs up to %d for channel %s",
+		len(interceptors), len(r.interceptors), r.channel)
+
 	return r
 }
 
@@ -465,6 +470,9 @@ func (r *routerChannel) AddPostHandlers(postHandlers ...PostHandler) RouterChann
 			r.postHandlers = append(r.postHandlers, handler)
 		}
 	}
+
+	log.Debugf("add %d post handlers up to %d for channel %s",
+		len(postHandlers), len(r.postHandlers), r.channel)
 
 	return r
 }
