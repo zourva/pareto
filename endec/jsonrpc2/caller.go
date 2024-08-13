@@ -46,13 +46,13 @@ func (i *Client) Invoke(channel, method string, timeout time.Duration, params ..
 		return nil, err
 	}
 
+	if rsp.Error != nil && rsp.Error.Error() != "" {
+		return nil, rsp.Error
+	}
+
 	// validate message id
 	if rsp.ID != req.ID {
 		return nil, errors.New(ErrCodeString[ErrServerInvalidMessageId])
-	}
-
-	if rsp.Error != nil && rsp.Error.Error() != "" {
-		return nil, rsp.Error
 	}
 
 	return rsp, nil

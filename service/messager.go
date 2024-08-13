@@ -46,7 +46,7 @@ type JsonRpcBinder struct {
 	service Service
 }
 
-func (b *JsonRpcBinder) Bind(channels map[string]jsonrpc2.ChannelHandler) error {
+func (b *JsonRpcBinder) Bind(channels map[string]jsonrpc2.Dispatcher) error {
 	for name, handler := range channels {
 		if err := b.service.ExposeMethod(name, handler); err != nil {
 			return err
