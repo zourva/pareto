@@ -424,6 +424,7 @@ func New(desc *Descriptor, options ...Option) Service {
 // A default register is also created associating with the default messager.
 func NewMetaService(desc *Descriptor, options ...Option) *MetaService {
 	name := desc.Name
+	domain := desc.Domain
 	reg := desc.Registry
 	if len(name) == 0 || len(reg) == 0 {
 		log.Errorln("service name/registry must not be empty")
@@ -436,10 +437,11 @@ func NewMetaService(desc *Descriptor, options ...Option) *MetaService {
 		enableTrace: false,
 		//locker:      concurrent.NewSpinLock(),
 		status: &Status{
-			Name:  name,
-			State: Offline,
-			Time:  box.TimeNowMs(),
-			Ready: false,
+			Name:   name,
+			Domain: domain,
+			State:  Offline,
+			Time:   box.TimeNowMs(),
+			Ready:  false,
 		},
 	}
 

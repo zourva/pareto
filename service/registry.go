@@ -41,7 +41,8 @@ import (
 // service registry info
 type registry struct {
 	//service name
-	name string
+	name   string
+	domain int
 	//liveness state
 	state State
 	//readiness
@@ -92,10 +93,11 @@ func (r *registry) update(s *Status) {
 
 func (r *registry) toStatus() *Status {
 	return &Status{
-		Name:  r.name,
-		State: r.state,
-		Ready: r.ready,
-		Time:  r.updateTime,
+		Name:   r.name,
+		Domain: r.domain,
+		State:  r.state,
+		Ready:  r.ready,
+		Time:   r.updateTime,
 	}
 }
 
@@ -206,6 +208,7 @@ func (s *RegistryManager) registry(status *Status) *registry {
 
 	r := &registry{
 		name:       status.Name,
+		domain:     status.Domain,
 		state:      status.State,
 		ready:      status.Ready,
 		updateTime: t,
@@ -349,10 +352,11 @@ func (s *RegistryManager) handleQueryStatus(req *jsonrpc2.RPCRequest) *jsonrpc2.
 	}
 
 	return jsonrpc2.NewResponse(req, &QueryStatusRsp{Status: &Status{
-		Name:  reg.name,
-		State: reg.state,
-		Time:  reg.updateTime,
-		Ready: reg.ready,
+		Name:   reg.name,
+		Domain: reg.domain,
+		State:  reg.state,
+		Time:   reg.updateTime,
+		Ready:  reg.ready,
 		//Metrics: reg.metrics,
 		//CheckInterval: uint32(reg.interval),
 		//AllowFailures: uint32(reg.threshold),
@@ -375,10 +379,11 @@ func (s *RegistryManager) handleQueryStatusList(req *jsonrpc2.RPCRequest) *jsonr
 			for _, reg := range all {
 				if reg.name == name {
 					list.Services = append(list.Services, &Status{
-						Name:  reg.name,
-						State: reg.state,
-						Time:  reg.updateTime,
-						Ready: reg.ready,
+						Name:   reg.name,
+						Domain: reg.domain,
+						State:  reg.state,
+						Time:   reg.updateTime,
+						Ready:  reg.ready,
 					})
 				}
 			}
@@ -387,10 +392,11 @@ func (s *RegistryManager) handleQueryStatusList(req *jsonrpc2.RPCRequest) *jsonr
 		// if no whitelist, return all
 		for _, reg := range all {
 			list.Services = append(list.Services, &Status{
-				Name:  reg.name,
-				State: reg.state,
-				Time:  reg.updateTime,
-				Ready: reg.ready,
+				Name:   reg.name,
+				Domain: reg.domain,
+				State:  reg.state,
+				Time:   reg.updateTime,
+				Ready:  reg.ready,
 			})
 		}
 	}
