@@ -17,10 +17,11 @@ type StatusConf struct {
 
 // Status defines heartbeat info published by a service.
 type Status struct {
-	Name  string `json:"name"`  //name of the service
-	State State  `json:"state"` //liveness state of the service
-	Time  uint64 `json:"time"`  //report timestamp in milliseconds
-	Ready bool   `json:"ready"` //readiness state of the service
+	Name   string `json:"name"`   //name of the service
+	Domain int    `json:"domain"` //domain of the service
+	State  State  `json:"state"`  //liveness state of the service
+	Time   uint64 `json:"time"`   //report timestamp in milliseconds
+	Ready  bool   `json:"ready"`  //readiness state of the service
 
 	Metrics any `json:"metrics,omitempty"` //detail metrics, optional
 

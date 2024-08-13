@@ -21,10 +21,11 @@ func (m *Monitor) GetStatus(name string) *Status {
 	}
 
 	return &Status{
-		Name:  reg.name,
-		State: reg.state,
-		Time:  reg.updateTime,
-		Ready: reg.ready,
+		Name:   reg.name,
+		Domain: reg.domain,
+		State:  reg.state,
+		Time:   reg.updateTime,
+		Ready:  reg.ready,
 	}
 }
 
@@ -34,10 +35,11 @@ func (m *Monitor) GetStatusList() StatusList {
 	all := m.registry.all()
 	for _, reg := range all {
 		list.Services = append(list.Services, &Status{
-			Name:  reg.name,
-			State: reg.state,
-			Time:  reg.updateTime,
-			Ready: reg.ready,
+			Name:   reg.name,
+			Domain: reg.domain,
+			State:  reg.state,
+			Time:   reg.updateTime,
+			Ready:  reg.ready,
 		})
 
 	}
