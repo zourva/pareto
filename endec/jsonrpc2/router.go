@@ -171,7 +171,7 @@ func (r *router) AddChannel(endpoint string, handlers map[string]Handler, opts .
 	c := newRouterChannel(endpoint, handlers, opts...)
 	if c.MethodDispatcher() == nil {
 		c.SetDispatcher(r.genMethodDispatcher(endpoint))
-		log.Debugln("use default dispatcher")
+		//log.Debugln("use default dispatcher")
 	}
 
 	// save channel
