@@ -62,6 +62,10 @@ func (r *NatsRPC) CallV2(name string, data []byte, timeout time.Duration) ([]byt
 	m, err := r.Request(name, data, timeout)
 	if err != nil {
 		log.Warnf("rpc caller call %s failed: %v", name, err)
+		if errors.Is(err, nats.ErrTimeout) {
+			return nil, errors.New("timeout")
+		}
+
 		return nil, err
 	}
 
