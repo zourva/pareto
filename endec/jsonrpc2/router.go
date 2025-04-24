@@ -3,6 +3,7 @@ package jsonrpc2
 import (
 	"errors"
 	log "github.com/sirupsen/logrus"
+	"runtime/debug"
 	"sync"
 )
 
@@ -229,7 +230,9 @@ func (r *router) dispatcher(c *routerChannel) Dispatcher {
 			}
 
 			if p := recover(); p != nil {
+				stack := debug.Stack()
 				log.Errorln("router dispatcher recovered from:", p)
+				log.Errorf("show stack:\n %s", string(stack))
 			}
 		}()
 
