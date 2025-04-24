@@ -68,7 +68,7 @@ func (r *InProcRPC) Call(name string, args ...interface{}) (reflect.Value, error
 	return reflect.Value{}, nil
 }
 
-func (r *InProcRPC) CallV2(name string, data []byte, timeout time.Duration) ([]byte, error) {
+func (r *InProcRPC) CallV2(name string, _ []byte, _ time.Duration) ([]byte, error) {
 	_, ok := r.broker.handlers[name]
 	if !ok {
 		return nil, fmt.Errorf("rpc name %s not found", name)

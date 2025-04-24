@@ -94,7 +94,7 @@ func (r *registrar) QueryStatusList(namesWhitelist []string) *StatusList {
 
 	rsp, err := client.Invoke(EndpointServiceInfo, QueryStatusList, StatusQueryTimeout*time.Second, req)
 	if err != nil {
-		log.Errorf("query status list of services %s failed, %v", namesWhitelist, err)
+		log.Warnf("query status list of services %s failed, %v", namesWhitelist, err)
 		return nil
 	}
 
