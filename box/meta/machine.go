@@ -127,9 +127,9 @@ func (sm *StateMachine[T]) MoveToState(s T) bool {
 		return false
 	}
 
-	if sm.trace {
-		log.Debugf("state machine [%s] move state from %v to %v", sm.name, sm.GetState(), s)
-	}
+	//if sm.trace {
+	log.Debugf("state machine [%s] move state from %v to %v", sm.name, sm.GetState(), s)
+	//}
 	//else {
 	//	log.Tracef("state machine [%s] move state from %v to %v", sm.name, sm.current, s)
 	//}
