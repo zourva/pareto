@@ -305,10 +305,15 @@ func (sm *StateMachine[T]) RestoreState() {
 
 // triggers execution of the action defined in current state.
 func (sm *StateMachine[T]) trigger() {
-	//sm.mutex.RLock()
-	//defer sm.mutex.RUnlock()
-
 	stateName := sm.GetState()
+
+	// do not trigger stopping state here
+	if stateName != sm.stopping {
+		sm.triggerWithState(stateName)
+	}
+}
+
+func (sm *StateMachine[T]) triggerWithState(stateName T) {
 	state, ok := sm.states[stateName]
 	if !ok {
 		log.Errorf("state machine [%s] state %v not registered", sm.name, stateName)
@@ -318,7 +323,10 @@ func (sm *StateMachine[T]) trigger() {
 }
 
 func (sm *StateMachine[T]) loop() {
-	defer sm.loopWG.Done()
+	defer func() {
+		sm.triggerWithState(sm.stopping)
+		sm.loopWG.Done()
+	}()
 
 	// Trigger immediately once.
 	sm.trigger()
