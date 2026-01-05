@@ -37,10 +37,6 @@ func (s *State[T]) trigger() {
 			}
 
 			s.Action(s.Args)
-
-			if /*!box.IsZero(s.machine.stopping) && */ s.Name == s.machine.stopping {
-				s.machine.signalStopped()
-			}
 		}
 	}
 }
@@ -64,11 +60,6 @@ type StateMachine[T string | int32] struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	loopWG sync.WaitGroup
-
-	stopAck struct {
-		wg   *sync.WaitGroup
-		once sync.Once
-	}
 }
 
 // NewStateMachine creates a new state machine
@@ -89,18 +80,6 @@ func NewStateMachine[T string | int32](name string, precision time.Duration) *St
 
 func (sm *StateMachine[T]) initRuntime() {
 	sm.ctx, sm.cancel = context.WithCancel(context.Background())
-	sm.stopAck.once = sync.Once{}
-	sm.stopAck.wg = nil
-}
-
-func (sm *StateMachine[T]) signalStopped() {
-	if sm.stopAck.wg == nil {
-		return
-	}
-	sm.stopAck.once.Do(func() {
-		sm.stopAck.wg.Done()
-		log.Debugf("state machine [%s] stop acknowledged", sm.name)
-	})
 }
 
 // GetState returns the current state.
@@ -248,11 +227,6 @@ func (sm *StateMachine[T]) Startup() bool {
 	}
 
 	sm.initRuntime()
-	if _, ok := sm.states[sm.stopping]; ok {
-		wg := &sync.WaitGroup{}
-		wg.Add(1)
-		sm.stopAck.wg = wg
-	}
 	if !sm.MoveToState(sm.starting) {
 		sm.cancel()
 		sm.ctx = nil
@@ -280,9 +254,6 @@ func (sm *StateMachine[T]) Shutdown() {
 
 	if _, ok := sm.states[sm.stopping]; ok {
 		sm.MoveToState(sm.stopping)
-		if sm.stopAck.wg != nil {
-			sm.stopAck.wg.Wait()
-		}
 	}
 
 	if sm.cancel != nil {
@@ -294,7 +265,6 @@ func (sm *StateMachine[T]) Shutdown() {
 	sm.ticker = nil
 	sm.cancel = nil
 	sm.ctx = nil
-	sm.stopAck.wg = nil
 
 	log.Infof("state machine [%s] exited", sm.name)
 }
@@ -335,10 +305,15 @@ func (sm *StateMachine[T]) RestoreState() {
 
 // triggers execution of the action defined in current state.
 func (sm *StateMachine[T]) trigger() {
-	//sm.mutex.RLock()
-	//defer sm.mutex.RUnlock()
-
 	stateName := sm.GetState()
+
+	// do not trigger stopping state here
+	if stateName != sm.stopping {
+		sm.triggerWithState(stateName)
+	}
+}
+
+func (sm *StateMachine[T]) triggerWithState(stateName T) {
 	state, ok := sm.states[stateName]
 	if !ok {
 		log.Errorf("state machine [%s] state %v not registered", sm.name, stateName)
@@ -348,7 +323,10 @@ func (sm *StateMachine[T]) trigger() {
 }
 
 func (sm *StateMachine[T]) loop() {
-	defer sm.loopWG.Done()
+	defer func() {
+		sm.triggerWithState(sm.stopping)
+		sm.loopWG.Done()
+	}()
 
 	// Trigger immediately once.
 	sm.trigger()
