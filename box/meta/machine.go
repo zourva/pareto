@@ -1,9 +1,12 @@
 package meta
 
 import (
-	log "github.com/sirupsen/logrus"
+	"context"
+	"sync"
 	"sync/atomic"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // Action defines the action to execute when a state is reached.
@@ -36,9 +39,7 @@ func (s *State[T]) trigger() {
 			s.Action(s.Args)
 
 			if /*!box.IsZero(s.machine.stopping) && */ s.Name == s.machine.stopping {
-				close(s.machine.stopped)
-				//s.machine.stopped = nil
-				log.Debugf("state machine [%s] stop acknowledged", s.machine.name)
+				s.machine.signalStopped()
 			}
 		}
 	}
@@ -58,9 +59,16 @@ type StateMachine[T string | int32] struct {
 
 	ticker    *time.Ticker
 	precision time.Duration
-	quit      chan struct{}
-	stopped   chan struct{}
 	trace     bool
+
+	ctx    context.Context
+	cancel context.CancelFunc
+	loopWG sync.WaitGroup
+
+	stopAck struct {
+		wg   *sync.WaitGroup
+		once sync.Once
+	}
 }
 
 // NewStateMachine creates a new state machine
@@ -70,15 +78,29 @@ func NewStateMachine[T string | int32](name string, precision time.Duration) *St
 		name:      name,
 		states:    make(map[T]*State[T]),
 		precision: precision,
-		ticker:    time.NewTicker(precision),
-		quit:      make(chan struct{}),
-		stopped:   make(chan struct{}),
 		trace:     false,
 	}
 
 	sm.current.Store(new(T))
+	sm.initRuntime()
 
 	return sm
+}
+
+func (sm *StateMachine[T]) initRuntime() {
+	sm.ctx, sm.cancel = context.WithCancel(context.Background())
+	sm.stopAck.once = sync.Once{}
+	sm.stopAck.wg = nil
+}
+
+func (sm *StateMachine[T]) signalStopped() {
+	if sm.stopAck.wg == nil {
+		return
+	}
+	sm.stopAck.once.Do(func() {
+		sm.stopAck.wg.Done()
+		log.Debugf("state machine [%s] stop acknowledged", sm.name)
+	})
 }
 
 // GetState returns the current state.
@@ -116,6 +138,7 @@ func (sm *StateMachine[T]) MoveToState(s T) bool {
 	//defer sm.mutex.Unlock()
 	//sm.current = s
 	sm.current.Store(&state.Name)
+	state.tickCnt = 0
 
 	return true
 }
@@ -205,6 +228,11 @@ func (sm *StateMachine[T]) Startup() bool {
 		return false
 	}
 
+	if sm.ticker != nil {
+		log.Warnf("state machine [%s] already running", sm.name)
+		return false
+	}
+
 	//if box.IsZero(sm.starting) {
 	//	log.Errorf("state machine [%s] has no starting state", sm.name)
 	//	return false
@@ -214,8 +242,26 @@ func (sm *StateMachine[T]) Startup() bool {
 	//	sm.MoveToState(sm.starting)
 	//}
 
-	sm.MoveToState(sm.starting)
+	if _, ok := sm.states[sm.starting]; !ok {
+		log.Errorf("state machine [%s] has no valid starting state", sm.name)
+		return false
+	}
 
+	sm.initRuntime()
+	if _, ok := sm.states[sm.stopping]; ok {
+		wg := &sync.WaitGroup{}
+		wg.Add(1)
+		sm.stopAck.wg = wg
+	}
+	if !sm.MoveToState(sm.starting) {
+		sm.cancel()
+		sm.ctx = nil
+		return false
+	}
+
+	sm.ticker = time.NewTicker(sm.precision)
+
+	sm.loopWG.Add(1)
 	go sm.loop()
 	log.Infof("state machine [%s] started", sm.name)
 
@@ -225,20 +271,30 @@ func (sm *StateMachine[T]) Startup() bool {
 // Shutdown stops the internal loop and wait
 // until the stopping state action returns.
 func (sm *StateMachine[T]) Shutdown() {
+	if sm.ticker == nil {
+		log.Infof("state machine [%s] already stopped", sm.name)
+		return
+	}
+
 	log.Infof("state machine [%s] is exiting", sm.name)
 
-	//if !box.IsZero(sm.stopping) {
-	sm.MoveToState(sm.stopping)
-	<-sm.stopped
-	//log.Infof("state machine [%s] loop quit", sm.name)
-	//}
+	if _, ok := sm.states[sm.stopping]; ok {
+		sm.MoveToState(sm.stopping)
+		if sm.stopAck.wg != nil {
+			sm.stopAck.wg.Wait()
+		}
+	}
 
-	close(sm.quit)
-
-	//wait for inner loop to quit
-	time.Sleep(time.Millisecond * 100)
+	if sm.cancel != nil {
+		sm.cancel()
+	}
+	sm.loopWG.Wait()
 
 	sm.ticker.Stop()
+	sm.ticker = nil
+	sm.cancel = nil
+	sm.ctx = nil
+	sm.stopAck.wg = nil
 
 	log.Infof("state machine [%s] exited", sm.name)
 }
@@ -247,6 +303,9 @@ func (sm *StateMachine[T]) Shutdown() {
 //
 //	NOTE: Not goroutine-safe.
 func (sm *StateMachine[T]) Pause() {
+	if sm.ticker == nil {
+		return
+	}
 	sm.ticker.Stop()
 }
 
@@ -254,6 +313,9 @@ func (sm *StateMachine[T]) Pause() {
 //
 //	NOTE: Not goroutine-safe.
 func (sm *StateMachine[T]) Resume() {
+	if sm.ticker == nil {
+		return
+	}
 	sm.ticker.Reset(sm.precision)
 }
 
@@ -276,17 +338,24 @@ func (sm *StateMachine[T]) trigger() {
 	//sm.mutex.RLock()
 	//defer sm.mutex.RUnlock()
 
-	state := sm.states[sm.GetState()]
+	stateName := sm.GetState()
+	state, ok := sm.states[stateName]
+	if !ok {
+		log.Errorf("state machine [%s] state %v not registered", sm.name, stateName)
+		return
+	}
 	state.trigger()
 }
 
 func (sm *StateMachine[T]) loop() {
+	defer sm.loopWG.Done()
+
 	// Trigger immediately once.
 	sm.trigger()
 
 	for {
 		select {
-		case <-sm.quit:
+		case <-sm.ctx.Done():
 			log.Infof("state machine [%s] loop quit", sm.name)
 			return
 		case <-sm.ticker.C:
